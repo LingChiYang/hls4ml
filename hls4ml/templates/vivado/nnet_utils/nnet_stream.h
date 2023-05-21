@@ -68,6 +68,37 @@ CloneLoop:
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+template<class data_T, class res_T, int N>
+void clone_stream_single(hls::stream<data_T> data[1], hls::stream<res_T> res1[1], hls::stream<res_T> res2[1]) {
+    CloneLoop: for (int i = 0; i < N; i++) {
+        #pragma HLS PIPELINE
+
+        data_T in_data = data[0].read();
+        res_T out_data1 = in_data;
+        res_T out_data2 = in_data;
+
+        res1[0].write(out_data1);
+        res2[0].write(out_data2);
+    }
+}
+
+
+template<class data_T, class res_T, int N>
+void clone_stream_array(hls::stream<data_T> data[4], hls::stream<res_T> res1[4], hls::stream<res_T> res2[4]) {
+    CloneLoop: for (int i = 0; i < N / 4; i++) {
+        #pragma HLS PIPELINE
+        for (int j = 0; j < 4; j++) {
+            #pragma HLS UNROLL
+            data_T in_data = data[j].read();
+            res1[j].write(in_data);
+            res2[j].write(in_data);
+        }
+    }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+    
 template <class data_T, class res_T, int N> void repack_stream(hls::stream<data_T> &data, hls::stream<res_T> &res) {
     if (data_T::size == res_T::size) {
         for (int i = 0; i < N / data_T::size; i++) {
