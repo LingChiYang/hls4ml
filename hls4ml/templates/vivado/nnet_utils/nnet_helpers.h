@@ -1,4 +1,4 @@
-#ifndef NNET_HELPERS_H
+#ifndef NNET_HELPERS_H 
 #define NNET_HELPERS_H
 
 #include "hls_stream.h"
