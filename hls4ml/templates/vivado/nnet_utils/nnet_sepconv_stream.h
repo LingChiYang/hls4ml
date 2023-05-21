@@ -178,7 +178,7 @@ void pointwise_mult_buffer_array(
     typename CONFIG_T::weight_t weights[CONFIG_T::n_chan * CONFIG_T::n_filt],
     typename CONFIG_T::bias_t biases[CONFIG_T::n_filt]
 ) {
-    #pragma HLS INLINE
+    #pragma HLS INLINE 
 
     res_T res[CONFIG_T::n_filt];
     #pragma HLS ARRAY_PARTITION variable=res complete
