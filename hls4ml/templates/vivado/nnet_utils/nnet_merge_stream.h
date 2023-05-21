@@ -330,6 +330,27 @@ ConcatLoopHeight:
     }
 }
 
+template<class input1_T, class input2_T, class res_T, typename CONFIG_T>
+void concatenate2d_1_array(
+    hls::stream<input1_T> data1[CONFIG_T::n_elem1_1],
+    hls::stream<input2_T> data2[CONFIG_T::n_elem2_1],
+    hls::stream<res_T> res[CONFIG_T::n_elem1_1+CONFIG_T::n_elem2_1])
+{
+    ConcatLoopHeight: for (int i = 0; i < CONFIG_T::n_elem1_0; i++) {
+        #pragma HLS PIPELINE II=1
+        for (int j = 0; j < CONFIG_T::n_elem1_1; j++) {
+            #pragma HLS UNROLL
+            input1_T in_data1 = data1[j].read();
+            res[j].write(in_data1);
+        }
+        for (int j = 0; j < CONFIG_T::n_elem2_1; j++) {
+            #pragma HLS UNROLL
+            input1_T in_data2 = data2[j].read();
+            res[CONFIG_T::n_elem1_1+j].write(in_data2);
+        }
+    }
+}
+
 template <class input1_T, class input2_T, class res_T, typename CONFIG_T>
 void concatenate2d(hls::stream<input1_T> &data1, hls::stream<input2_T> &data2, hls::stream<res_T> &res) {
     if (CONFIG_T::axis == 2 || CONFIG_T::axis == -1) {
