@@ -171,6 +171,38 @@ CastLoop:
     res_stream.write(res_pack);
 }
 
+template<class data_T, class res_T, typename CONFIG_T>
+void pointwise_mult_buffer_array(
+    const data_T data[CONFIG_T::n_chan],
+    hls::stream<res_T> res_stream[CONFIG_T::n_filt],
+    typename CONFIG_T::weight_t weights[CONFIG_T::n_chan * CONFIG_T::n_filt],
+    typename CONFIG_T::bias_t biases[CONFIG_T::n_filt]
+) {
+    #pragma HLS INLINE
+
+    res_T res[CONFIG_T::n_filt];
+    #pragma HLS ARRAY_PARTITION variable=res complete
+
+    data_T data_save[CONFIG_T::n_chan];
+    #pragma HLS ARRAY_PARTITION variable=data_save complete
+    InitData: for (int id = 0; id < CONFIG_T::n_chan; id++) {
+        #pragma HLS UNROLL
+        data_save[id] = data[id];
+    }
+
+    #pragma HLS INLINE region
+    if (CONFIG_T::strategy == nnet::latency) {
+        dense_latency<data_T, res_T, typename CONFIG_T::mult_config>(data_save, res, weights, biases);
+    } else {
+        dense_resource<data_T, res_T, typename CONFIG_T::mult_config>(data_save, res, weights, biases);
+    }
+
+    Write: for (unsigned i = 0; i < CONFIG_T::n_filt; i++) {
+        #pragma HLS UNROLL
+        res_stream[i].write(res[i]);
+    }
+}    
+  
 // Line Buffer Implementation (Phil's)
 template <class data_T, class res_T, typename CONFIG_T>
 void compute_depthwise_output_buffer_1d(const data_T &in_elem, hls::stream<res_T> &res_stream,
@@ -229,38 +261,6 @@ void compute_depthwise_output_buffer_1d(const data_T &in_elem, hls::stream<res_T
         sX = ((sX - lShiftX) == 0) ? sX - CONFIG_T::stride_width + 1 : sX + 1;
     }
 }
-
-template<class data_T, class res_T, typename CONFIG_T>
-void pointwise_mult_buffer_array(
-    const data_T data[CONFIG_T::n_chan],
-    hls::stream<res_T> res_stream[CONFIG_T::n_filt],
-    typename CONFIG_T::weight_t weights[CONFIG_T::n_chan * CONFIG_T::n_filt],
-    typename CONFIG_T::bias_t biases[CONFIG_T::n_filt]
-) {
-    #pragma HLS INLINE
-
-    res_T res[CONFIG_T::n_filt];
-    #pragma HLS ARRAY_PARTITION variable=res complete
-
-    data_T data_save[CONFIG_T::n_chan];
-    #pragma HLS ARRAY_PARTITION variable=data_save complete
-    InitData: for (int id = 0; id < CONFIG_T::n_chan; id++) {
-        #pragma HLS UNROLL
-        data_save[id] = data[id];
-    }
-
-    #pragma HLS INLINE region
-    if (CONFIG_T::strategy == nnet::latency) {
-        dense_latency<data_T, res_T, typename CONFIG_T::mult_config>(data_save, res, weights, biases);
-    } else {
-        dense_resource<data_T, res_T, typename CONFIG_T::mult_config>(data_save, res, weights, biases);
-    }
-
-    Write: for (unsigned i = 0; i < CONFIG_T::n_filt; i++) {
-        #pragma HLS UNROLL
-        res_stream[i].write(res[i]);
-    }
-}  
   
 template <class data_T, class res_T, typename CONFIG_T>
 void compute_depthwise_output_buffer_2d(const data_T &in_elem,
