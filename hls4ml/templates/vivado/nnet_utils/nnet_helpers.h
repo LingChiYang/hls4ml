@@ -198,17 +198,17 @@ template <class data_T, class save_T> void save_output_array(hls::stream<data_T>
         data.write(ctype);
     }
 }
-/*
-template <class data_T, class save_T> void save_output_array(hls::stream<data_T> data[SIZE], size_t SIZE, save_T *ptr, size_t layer_size) {
-    for (size_t i = 0; i < layer_size / SIZE; i++) {
-        for (size_t j = 0; j < SIZE; j++) {
+
+template <class data_T, class save_T, int chan> void save_output_array(hls::stream<data_T> data[chan], save_T *ptr, size_t layer_size) {
+    for (size_t i = 0; i < layer_size / chan; i++) {
+        for (size_t j = 0; j < chan; j++) {
             data_T ctype = data[j].read();
-            ptr[i * SIZE + j] = save_T(ctype);
+            ptr[i * chan + j] = save_T(ctype);
             data[j].write(ctype);
         }
     }
 }
-*/
+
 // We don't want to include save_T in this function because it will be inserted into myproject.cpp
 // so a workaround with element size is used
 template <class data_T> void save_layer_output(data_T *data, const char *layer_name, size_t layer_size) {
@@ -274,17 +274,17 @@ template <class data_T> void save_layer_output(hls::stream<data_T> &data, const 
         out.close();
     }
 }
-/*
-template <class data_T> void save_layer_output(hls::stream<data_T> data[SIZE], const char *layer_name, size_t SIZE, size_t layer_size) {
+
+template <class data_T, int chan> void save_layer_output(hls::stream<data_T> data[chan], const char *layer_name, size_t layer_size) {
     if (!trace_enabled)
         return;
 
     if (trace_outputs) {
         if (trace_outputs->count(layer_name) > 0) {
             if (trace_type_size == 4) {
-                save_output_array<data_T, float>(data, (float *)(*trace_outputs)[layer_name], layer_size);
+                save_output_array<data_T, float, chan>(data, (float *)(*trace_outputs)[layer_name], layer_size);
             } else if (trace_type_size == 8) {
-                save_output_array<data_T, double>(data, (double *)(*trace_outputs)[layer_name], layer_size);
+                save_output_array<data_T, double, chan>(data, (double *)(*trace_outputs)[layer_name], layer_size);
             } else {
                 std::cout << "Unknown trace type!" << std::endl;
             }
@@ -297,18 +297,18 @@ template <class data_T> void save_layer_output(hls::stream<data_T> data[SIZE], c
         std::fstream out;
         out.open(filename.str(), std::ios::app);
         assert(out.is_open());
-        for (size_t i = 0; i < layer_size / data_T::size; i++) {
-            data_T ctype = data.read();
-            for (size_t j = 0; j < data_T::size; j++) {
+        for (size_t i = 0; i < layer_size / chan; i++) {
+            for (size_t j = 0; j < chan; j++) {
+                data_T ctype = data[j].read();
                 out << float(ctype[j]) << " "; // We don't care about precision in text files
+                 data[j].write(ctype);
             }
-            data.write(ctype);
         }
         out << std::endl;
         out.close();
     }
 }
-*/
+
 #endif
 
 template <class src_T, class dst_T, size_t OFFSET, size_t SIZE> void copy_data(std::vector<src_T> src, dst_T dst[SIZE]) {
@@ -330,6 +330,21 @@ void copy_data(std::vector<src_T> src, hls::stream<dst_T> &dst) {
             i_pack = 0;
             dst.write(dst_pack);
         }
+    }
+}
+
+template<class src_T, class dst_T, size_t OFFSET, size_t SIZE, size_t chan>
+void copy_data(std::vector<src_T> src, hls::stream<dst_T> dst[chan]) {
+    typename std::vector<src_T>::const_iterator in_begin = src.cbegin() + OFFSET;
+    typename std::vector<src_T>::const_iterator in_end = in_begin + SIZE;
+
+    int count = 0;
+    for (typename std::vector<src_T>::const_iterator i = in_begin; i != in_end; ++i) {
+        dst_T dst_pack = dst_T(*i);
+        std::cout << "dst_pack: " << dst_pack << std::endl;
+        dst[count].write(dst_pack);
+        if(count<chan-1)count++;
+        else count=0;
     }
 }
 
@@ -363,6 +378,18 @@ template <class res_T, size_t SIZE> void print_result(hls::stream<res_T> &result
     out << std::endl;
 }
 
+template<class res_T, size_t SIZE, size_t chan>
+void print_result(hls::stream<res_T> result[chan], std::ostream &out, bool keep = false) {
+    for(int j = 0; j < SIZE/chan; j++) {
+        for(int i = 0; i < chan; i++) {
+            res_T res_pack = result[i].read();
+            out << res_pack << " ";
+            if (keep) result[i].write(res_pack);
+        }
+    }
+    out << std::endl;
+}
+
 template <class data_T, size_t SIZE> void fill_zero(data_T data[SIZE]) { std::fill_n(data, SIZE, 0.); }
 
 template <class data_T, size_t SIZE> void fill_zero(hls::stream<data_T> &data) {
@@ -372,6 +399,15 @@ template <class data_T, size_t SIZE> void fill_zero(hls::stream<data_T> &data) {
             data_pack[j] = 0.;
         }
         data.write(data_pack);
+    }
+}
+
+template<class data_T, size_t SIZE, size_t chan>
+void fill_zero(hls::stream<data_T> data[chan]) {
+    for(int i = 0; i < SIZE / chan; i++) {
+        for(int j = 0; j < chan; j++) {
+            data[j].write(0);
+        }
     }
 }
 

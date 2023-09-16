@@ -24,7 +24,7 @@ namespace nnet {
 // Common type definitions
 enum io_type { io_parallel = 0, io_stream, io_array_stream};
 enum strategy { latency, resource };
-enum merge_mode { concat = 0, add };
+enum merge_mode { concat = 0, additive };
 
 /* ---
  * Balanced tree reduce implementation.

@@ -14,7 +14,7 @@ class Clone(Layer):
             self.add_output_variable(inp.shape, inp.dim_names, out_name=out_name, var_name='layer{index}_cpy' + str(i + 1))
 
 
-clone_include_list = ['nnet_utils/nnet_stream.h']
+clone_include_list = ['nnet_utils/nnet_stream.h', 'nnet_utils/nnet_array_stream.h']
 
 
 class CloneFunctionTemplate(FunctionCallTemplate):
@@ -28,11 +28,18 @@ class CloneFunctionTemplate(FunctionCallTemplate):
             params['output' + str(i + 1)] = node.variables[node.outputs[i]].name
 
         if self.template is None:
-            self.template = (
-                'nnet::clone_stream<{input_t}, {output_t}, {size}>({input}, '
-                + ', '.join(['{output' + str(i + 1) + '}' for i in range(len(node.outputs))])
-                + ');'
-            )
+            if node.model.config.get_config_value('IOType') != 'io_array_stream':
+                self.template = (
+                    'nnet::clone_stream<{input_t}, {output_t}, {size}>({input}, '
+                    + ', '.join(['{output' + str(i + 1) + '}' for i in range(len(node.outputs))])
+                    + ');'
+                )
+            else:
+                self.template = (
+                    'nnet::clone_stream<{input_t}, {output_t}, {size}, {size}>({input}, '
+                    + ', '.join(['{output' + str(i + 1) + '}' for i in range(len(node.outputs))])
+                    + ');'
+                )
 
         return self.template.format(**params)
 
@@ -59,7 +66,7 @@ class CloneOutput(OptimizerPass):
         return True
 
     def transform(self, model, node):
-        if model.config.get_config_value('IOType') != 'io_stream':
+        if model.config.get_config_value('IOType') != 'io_stream' and model.config.get_config_value('IOType') != 'io_array_stream':
             return False
 
         output_map = node.get_output_use_map()

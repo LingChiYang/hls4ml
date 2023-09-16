@@ -180,7 +180,7 @@ class VivadoWriter(Writer):
                         newline += indent + '#pragma HLS DATAFLOW \n'
                     else:
                         newline += indent + '#pragma HLS PIPELINE \n'
-                if io_type == 'io_stream':
+                if io_type == 'io_stream' or io_type == 'io_array_stream':
                     newline += indent + '#pragma HLS INTERFACE axis port={},{} \n'.format(
                         ','.join(all_inputs), ','.join(all_outputs)
                     )
@@ -211,9 +211,14 @@ class VivadoWriter(Writer):
                         if model.config.trace_output and layer.get_attr('trace', False):
                             newline += '#ifndef __SYNTHESIS__\n'
                             for var in vars:
-                                newline += '    nnet::save_layer_output<{}>({}, "{}", {});\n'.format(
-                                    var.type.name, var.name, layer.name, var.size_cpp()
-                                )
+                                if model.config.get_config_value("IOType") == 'io_array_stream':
+                                    newline += '    nnet::save_layer_output<{},{}>({}, "{}", {});\n'.format(
+                                        var.type.name, var.shape[-1], var.name, layer.name, var.size_cpp()
+                                    )
+                                else:
+                                    newline += '    nnet::save_layer_output<{}>({}, "{}", {});\n'.format(
+                                        var.type.name, var.name, layer.name, var.size_cpp()
+                                    )
                             newline += '#endif\n'
                         newline += '\n'
 
@@ -436,9 +441,14 @@ class VivadoWriter(Writer):
                 offset = 0
                 for inp in model_inputs:
                     newline += '      ' + inp.definition_cpp() + ';\n'
-                    newline += '      nnet::copy_data<float, {}, {}, {}>(in, {});\n'.format(
-                        inp.type.name, offset, inp.size_cpp(), inp.name
-                    )
+                    if model.config.get_config_value("IOType") == 'io_array_stream':
+                        newline += '      nnet::copy_data<float, {}, {}, {}, {}>(in, {});\n'.format(
+                            inp.type.name, offset, inp.size_cpp(), inp.shape[-1], inp.name
+                        )
+                    else:
+                        newline += '      nnet::copy_data<float, {}, {}, {}>(in, {});\n'.format(
+                            inp.type.name, offset, inp.size_cpp(), inp.name
+                        )
                     offset += inp.size()
                 for out in model_outputs:
                     newline += '      ' + out.definition_cpp() + ';\n'
@@ -446,7 +456,10 @@ class VivadoWriter(Writer):
                 newline = line
                 for inp in model_inputs:
                     newline += '    ' + inp.definition_cpp() + ';\n'
-                    newline += f'    nnet::fill_zero<{inp.type.name}, {inp.size_cpp()}>({inp.name});\n'
+                    if model.config.get_config_value("IOType") == 'io_array_stream':
+                        newline += f'    nnet::fill_zero<{inp.type.name}, {inp.size_cpp()}, {inp.shape[-1]}>({inp.name});\n'
+                    else:
+                        newline += f'    nnet::fill_zero<{inp.type.name}, {inp.size_cpp()}>({inp.name});\n'
                 for out in model_outputs:
                     newline += '    ' + out.definition_cpp() + ';\n'
             elif '// hls-fpga-machine-learning insert top-level-function' in line:
@@ -472,18 +485,28 @@ class VivadoWriter(Writer):
             elif '// hls-fpga-machine-learning insert tb-output' in line:
                 newline = line
                 for out in model_outputs:
-                    newline += indent + 'nnet::print_result<{}, {}>({}, fout);\n'.format(
-                        out.type.name, out.size_cpp(), out.name
-                    )  # TODO enable this
+                    if model.config.get_config_value("IOType") == 'io_array_stream':
+                        newline += indent + 'nnet::print_result<{}, {}, {}>({}, fout);\n'.format(
+                            out.type.name, out.size_cpp(), out.shape[-1], out.name
+                        )
+                    else: 
+                        newline += indent + 'nnet::print_result<{}, {}>({}, fout);\n'.format(
+                            out.type.name, out.size_cpp(), out.name
+                        )  # TODO enable this
             elif (
                 '// hls-fpga-machine-learning insert output' in line
                 or '// hls-fpga-machine-learning insert quantized' in line
             ):
                 newline = line
                 for out in model_outputs:
-                    newline += indent + 'nnet::print_result<{}, {}>({}, std::cout, true);\n'.format(
-                        out.type.name, out.size_cpp(), out.name
-                    )
+                    if model.config.get_config_value("IOType") == 'io_array_stream':
+                        newline += indent + 'nnet::print_result<{}, {}, {}>({}, std::cout, true);\n'.format(
+                            out.type.name, out.size_cpp(), out.shape[-1], out.name
+                        )
+                    else:
+                        newline += indent + 'nnet::print_result<{}, {}>({}, std::cout, true);\n'.format(
+                            out.type.name, out.size_cpp(), out.name
+                        )
             else:
                 newline = line
             fout.write(newline)
