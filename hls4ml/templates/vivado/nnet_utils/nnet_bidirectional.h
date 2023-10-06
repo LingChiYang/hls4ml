@@ -99,9 +99,9 @@ template<class data_T, class res_T, typename CONFIG_T>
 
 
     data_T temp_normal[CONFIG_T::n_sequence*CONFIG_T::n_in];
-    #pragma HLS ARRAY_PARTITION variable=temp_normal complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=temp_normal cyclic factor=CONFIG_T::n_in
     data_T temp_reverse[CONFIG_T::n_sequence*CONFIG_T::n_in];
-    #pragma HLS ARRAY_PARTITION variable=temp_reverse complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=temp_reverse cyclic factor=CONFIG_T::n_in
 
     res_T forwardgru_out[CONFIG_T::n_sequence_out*CONFIG_T::n_state];
     #pragma HLS ARRAY_PARTITION variable=forwardgru_out cyclic factor=CONFIG_T::n_state
