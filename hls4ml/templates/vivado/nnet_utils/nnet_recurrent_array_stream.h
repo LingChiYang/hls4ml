@@ -23,7 +23,6 @@ template<class data_T, class init_T, class res_T, typename CONFIG_T>
 
     res_T  h_newstate[CONFIG_T::n_state];
     #pragma HLS ARRAY_PARTITION variable=h_newstate complete
-    
     if (CONFIG_T::use_initial==1){
         for(int ii = 0; ii < CONFIG_T::n_state; ii++) {
             #pragma HLS UNROLL
@@ -35,10 +34,9 @@ template<class data_T, class init_T, class res_T, typename CONFIG_T>
             h_newstate[ii] = 0;
         }
     }
-
     data_T data_in[CONFIG_T::n_in];
     #pragma HLS ARRAY_RESHAPE variable=data_in complete
-    bool reset_state = false;
+    bool reset_state = true;
 
     DataPropagation: for(int i_in = 0; i_in < CONFIG_T::n_sequence; i_in++) {
       if (CONFIG_T::n_sequence*CONFIG_T::n_in / CONFIG_T::n_in > 1) {

@@ -446,7 +446,7 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
     if (reset_state) {
         for (int i_h_state = 0; i_h_state < (CONFIG_T::n_state); i_h_state++) {
             #pragma HLS UNROLL
-            h_state[i_h_state] = 0;
+            h_state[i_h_state] = h_newstate[i_h_state];
         }
     }
 
@@ -458,7 +458,14 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
     nnet::dense<data_T, typename CONFIG_T::accum_dense_t, typename CONFIG_T::mult_config1>(data, tmpres, param, param_b);
     nnet::dense<typename CONFIG_T::state_t, typename CONFIG_T::accum_dense_t, typename CONFIG_T::mult_config2>(qh_state, tmpres_state_zr, param_zr,
                                                                                     param_br);
-
+    std::cout << "qh_state[0] = " << qh_state[0] << std::endl;
+    std::cout << "data[0] = " << data[0] << std::endl;
+    std::cout << "param[0] = " << param[0] << std::endl;
+    std::cout << "param_b[0] = " << param_b[0] << std::endl;
+    std::cout << "param_zr[0] = " << param_zr[0] << std::endl;
+    std::cout << "param_br[0] = " << param_br[0] << std::endl;
+    std::cout << "tmpres_state_zr[0] = " << tmpres_state_zr[0] << std::endl;
+    std::cout << "tmpres[0] = " << tmpres[0] << std::endl;
     // Adding the individual vectors from the multiplication of tmpres = Wx*x(t); tmpres_state_zr = Wh*h(t-1); tmpres
     // initialized with biases -- DONE
     for (int iacc = 0; iacc < (2 * CONFIG_T::n_state); iacc++) {
@@ -470,7 +477,7 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
     // Activation function Sub layer -- START
     CONFIG_T::template activation_recr<typename CONFIG_T::accum_dense_t, typename CONFIG_T::recr_act_t,
                                        typename CONFIG_T::ACT_CONFIG_GRU>::activation(inputacc_zr, tmpres_zr);
-
+    std::cout << "tmpres_zr[0] = " << tmpres_zr[0] << std::endl;
     // Activation function Sub layer -- END
 
     // Hadamrd product of r(t) = inputacc_zr[2*n_state:n_state] and h(t-1) = h_newstate
@@ -489,6 +496,7 @@ void gru_static(bool reset_state, data_T data[CONFIG_T::n_in], res_T h_newstate[
     // Now run the activation on this guy
     CONFIG_T::template activation<typename CONFIG_T::accum_t, typename CONFIG_T::act_t,
                                   typename CONFIG_T::ACT_CONFIG_T>::activation(inputacc_h, tmpres_h);
+    std::cout << "tmpres_h[0] = " << tmpres_h[0] << std::endl;
 
     // Mix the stat with the previous state
     for (int iacc = 0; iacc < (CONFIG_T::n_state); iacc++) {
