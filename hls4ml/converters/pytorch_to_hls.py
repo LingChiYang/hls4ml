@@ -170,7 +170,7 @@ def pytorch_to_hls(config):
                 class_object = children[node.target]
 
             pytorch_class = class_object.__class__.__name__
-
+            print(f'Layer {layer_counter}: {pytorch_class}')
             if pytorch_class not in supported_layers:
                 raise Exception(f'Unsupported layer {pytorch_class}')
 
