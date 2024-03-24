@@ -1287,6 +1287,60 @@ class GarNetStack(GarNet):
 
         self._output_features = self.attributes['n_out_features'][-1]
 
+class LayerNorm(Layer):
+    _expected_attributes = [
+    ]
+    def initialize(self):
+        self.set_attr('block_x', 1)
+        self.set_attr('block_y', 1)
+        self.set_attr('block_k', 1)
+        dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
+        self.add_output_variable([180,182], dims)
+
+class TransformerEncoderLayer(Layer):
+    _expected_attributes = [
+        #Attribute('num_heads'),
+        #Attribute('head_dim_key'),
+        #Attribute('head_dim_value'),
+        #Attribute('feature_dim'),
+        #Attribute('seq_len'),
+        #WeightAttribute('in_proj_weight'),
+        #WeightAttribute('in_proj_bias'),
+        #WeightAttribute('out_proj_weight'),
+        #WeightAttribute('out_proj_bias'),
+        #TypeAttribute('in_proj_weight'),
+        #TypeAttribute('in_proj_bias'),
+        #TypeAttribute('out_proj_weight'),
+        #TypeAttribute('out_proj_bias')
+    ]
+
+    def initialize(self):
+        #weights_source = [
+        #        ('in_proj', 'kernel'),
+        #        ('in_proj', 'bias'),
+        #        ('out_proj', 'kernel'),
+        #        ('out_proj', 'bias')
+        #    ]
+        #
+        #for lname, wtype in weights_source:                         
+        #    #data = self.model.get_weights_data(self.name, '{lname}/{wtype}'.format(lname=lname, wtype=wtype))
+        #    if wtype == 'kernel':
+        #        vtype = 'weight'
+        #    else:
+        #        vtype = 'bias'
+#
+        #    name = '{}_{}'.format(lname, vtype)
+        #    var_name = '{}_{}{{index}}'.format(lname, vtype)
+        #    #self.add_weights_variable(name=name, var_name=var_name, data=data)
+        #print('TransformerEncoder initialized')
+        #from pprint import pprint
+        #pprint(self.attributes.attributes)
+        #shape = self.attributes['query_shape'][1:]
+        dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
+        self.add_output_variable([180,182], dims)
+        self.set_attr('block_x', 1)
+        self.set_attr('block_y', 1)
+        self.set_attr('block_k', 1)
 
 class LayerGroup(Layer):
     _expected_attributes = [
@@ -1298,7 +1352,11 @@ class LayerGroup(Layer):
     ]
 
     def initialize(self):
+        print('LayerGroup initialized')
+        from pprint import pprint
+        #pprint(self.attributes.attributes)
         shape = self.get_attr('output_shape')
+        print(shape)
         if shape[0] is None:
             shape.pop(0)
         dims = [f'N_INPUT_{self.index}_{i+1}' for i in range(len(shape))]
@@ -1380,6 +1438,10 @@ layer_map = {
     'SymbolicExpression': SymbolicExpression,
     # TensorFlow-specific layers:
     'BiasAdd': BiasAdd,
+    # Pytorch-specific layers:
+    #'TransformerEncoder': TransformerEncoder,
+    'TransformerEncoderLayer': TransformerEncoderLayer,
+    'LayerNorm': LayerNorm,
 }
 
 

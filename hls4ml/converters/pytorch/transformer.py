@@ -44,13 +44,14 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
 
 @pytorch_handler('TransformerEncoderLayer')
 def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
-    assert 'TransformerEncoder' in operation
+    assert 'TransformerEncoderLayer' in operation
     layer = {}
 
     layer['name'] = layer_name
     layer['inputs'] = input_names
-    layer['class_name'] = 'Conv2D'
+    layer['class_name'] = 'TransformerEncoderLayer'
     layer['data_format'] = 'channels_first'  # Pytorch default (can't change)
+    
     subclass_object = class_object.__dict__['_modules']['self_attn']
     sub_layer, output_shapes = parse_mha_layer('MultiheadAttention', layer_name + '_self_attn', input_names, input_shapes, node, subclass_object, data_reader, config)
     layer['self_attn'] = sub_layer
@@ -70,6 +71,35 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
     output_shapes = input_shapes
     return layer, output_shapes
 
+@pytorch_handler('Layers')
+def parse_layers(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
+    assert 'Layers' in operation
+
+    layer = {}
+
+    layer['name'] = layer_name
+    layer['inputs'] = input_names
+    layer['class_name'] = 'LayerGroup'
+    layer_list = []
+    for key, subclass_object in class_object.__dict__['_modules'].items():
+        sublayer_name = layer_name + '_' + key
+        if 'TransformerEncoderLayer' == subclass_object._get_name():
+            sublayer, _= parse_transenc_layer('TransformerEncoderLayer', sublayer_name, input_names, input_shapes, node, subclass_object, data_reader, config)
+            layer_list.append(sublayer)
+        else:
+            raise Exception(f'Layer type not supported: {subclass_object._get_name()} in {layer_name}')    
+
+    # LayerGroup info
+    layer['output_shape'] = input_shapes
+    layer['layer_list'] = layer_list
+    layer['input_layers'] = []
+    layer['output_layers'] = []
+    layer['data_reader'] = data_reader
+
+    output_shape = input_shapes  # Channel first as default
+
+    return layer, output_shape
+
 @pytorch_handler('TransformerEncoder')
 def parse_transenc(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
     assert 'TransformerEncoder' in operation
@@ -78,15 +108,22 @@ def parse_transenc(operation, layer_name, input_names, input_shapes, node, class
 
     layer['name'] = layer_name
     layer['inputs'] = input_names
-    layer['class_name'] = 'TransformerEncoder'
-    sublayer = {}
-    for key, subclass_object in class_object.__dict__['_modules']['layers'].__dict__['_modules'].items():
-        sublayer_anme = layer_name + '_' + key
-        sublayer[key], _= parse_transenc_layer(operation, sublayer_anme, input_names, input_shapes, node, subclass_object, data_reader, config)
+    layer['class_name'] = 'LayerGroup'
+    layer_list = []
+    for key, subclass_object in class_object.__dict__['_modules'].items():
+        if key == 'layers':
+            sublayer, _= parse_layers('Layers', key, input_names, input_shapes, node, subclass_object, data_reader, config)
+            layer_list.append(sublayer)
+        elif key == 'norm':
+            sublayer, _= parse_layernrom_layer('LayerNorm', key, input_names, input_shapes, node, subclass_object, data_reader, config)
+            layer_list.append(sublayer)
 
-    # Input info
-    layer['n_layers'] = class_object.num_layers
-    print("input_shapes = ", input_shapes)
+    # LayerGroup info
+    layer['output_shape'] = input_shapes
+    layer['layer_list'] = layer_list
+    layer['input_layers'] = []
+    layer['output_layers'] = []
+    layer['data_reader'] = data_reader
 
     output_shape = input_shapes  # Channel first as default
 
