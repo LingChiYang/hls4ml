@@ -1315,6 +1315,9 @@ class TransformerEncoderLayer(Layer):
     ]
 
     def initialize(self):
+        print('TransformerEncoder initialized')
+        from pprint import pprint
+        #pprint(self.attributes.attributes)
         #weights_source = [
         #        ('in_proj', 'kernel'),
         #        ('in_proj', 'bias'),
@@ -1338,9 +1341,6 @@ class TransformerEncoderLayer(Layer):
         #shape = self.attributes['query_shape'][1:]
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
         self.add_output_variable([180,182], dims)
-        self.set_attr('block_x', 1)
-        self.set_attr('block_y', 1)
-        self.set_attr('block_k', 1)
 
 class LayerGroup(Layer):
     _expected_attributes = [

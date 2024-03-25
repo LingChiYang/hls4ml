@@ -26,6 +26,7 @@ from hls4ml.model.layers import (
     SeparableConv2D,
     SimpleRNN,
     Softmax,
+    TransformerEncoderLayer,
 )
 from hls4ml.model.optimizer import get_backend_passes, layer_optimizer
 from hls4ml.model.types import FixedPrecisionType, IntegerPrecisionType, NamedType, PackedType
@@ -228,6 +229,8 @@ class VivadoBackend(FPGABackend):
     def init_base_layer(self, layer):
         reuse_factor = layer.model.config.get_reuse_factor(layer)
         layer.set_attr('reuse_factor', reuse_factor)
+        tiling_factor = layer.model.config.get_tiling_factor(layer)
+        layer.set_attr('tiling_factor', tiling_factor)
 
         target_cycles = layer.model.config.get_target_cycles(layer)
         layer.set_attr('target_cycles', target_cycles)
@@ -475,3 +478,13 @@ class VivadoBackend(FPGABackend):
     @layer_optimizer(GarNetStack)
     def init_garnet_stack(self, layer):
         self.init_garnet(layer)
+
+    @layer_optimizer(TransformerEncoderLayer)
+    def init_transformer(self, layer):
+        tiling_factor = layer.model.config.get_tiling_factor(layer)
+        layer.set_attr('tiling_factor', tiling_factor)
+        qkv_ram_style = layer.model.config.get_layer_config_value(layer, 'QKV_RAMStyle', 'Block')
+        layer.set_attr('qkv_ram_style', qkv_ram_style)
+        
+
+        layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))

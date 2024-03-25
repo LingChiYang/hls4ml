@@ -31,6 +31,10 @@ class HLSConfig:
         self.layer_type_rf = {}
         self.layer_name_rf = {}
 
+        self.model_tf = None
+        self.layer_type_tf = {}
+        self.layer_name_tf = {}
+
         self.model_targ_cycles = None
         self.layer_type_targ_cycles = {}
         self.layer_name_targ_cycles = {}
@@ -138,6 +142,18 @@ class HLSConfig:
 
         return rf
 
+    def get_tiling_factor(self, layer):
+        tf = self.layer_name_tf.get(layer.name.lower())
+        if tf is None:
+            tf = self.layer_type_tf.get(layer.class_name.lower())
+        if tf is None:
+            tf = self.model_rf
+
+        if tf is None:
+            raise Exception(f'No reuse factor for {layer.name} found and no default specified.')
+
+        return tf
+
     def get_target_cycles(self, layer):
         targ_cycles = self.layer_name_targ_cycles.get(layer.name.lower())
         if targ_cycles is None:
@@ -210,6 +226,7 @@ class HLSConfig:
 
             self.model_bf = model_cfg.get('BramFactor', np.inf)  # Weight threshold to be external BRAM
             self.model_rf = model_cfg.get('ReuseFactor')
+            self.model_tf = model_cfg.get('TilingFactor')
             self.model_targ_cycles = model_cfg.get('TargetCycles')
             self.model_conv_implementation = model_cfg.get('ConvImplementation', 'LineBuffer')
             self.model_strategy = model_cfg.get('Strategy', 'Latency')
@@ -229,6 +246,10 @@ class HLSConfig:
                 rf = layer_cfg.get('ReuseFactor')
                 if rf is not None:
                     self.layer_type_rf[layer_type.lower()] = rf
+
+                tf = layer_cfg.get('TilingFactor')
+                if tf is not None:
+                    self.layer_type_tf[layer_type.lower()] = tf
 
                 targ_cycles = layer_cfg.get('TargetCycles')
                 if targ_cycles is not None:
@@ -259,6 +280,10 @@ class HLSConfig:
                 rf = layer_cfg.get('ReuseFactor')
                 if rf is not None:
                     self.layer_name_rf[layer_name.lower()] = rf
+
+                tf = layer_cfg.get('TilingFactor')
+                if tf is not None:
+                    self.layer_name_tf[layer_name.lower()] = tf
 
                 targ_cycles = layer_cfg.get('TargetCycles')
                 if targ_cycles is not None:

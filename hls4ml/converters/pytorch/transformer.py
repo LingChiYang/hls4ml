@@ -28,16 +28,18 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
     layer['data_format'] = 'channels_first'
     #only implemented for in_proj_weight, in_proj_bias, out_proj_weight, out_proj_bias
     #TODO: implement for other weights and biases
-    #print("class_object ",class_object)
-    #print("class_object ",dir(class_object))
-    #print("class_object.in_proj_weight ",class_object.in_proj_weight.shape)
-    #print("class_object.in_proj_bias ",class_object.in_proj_bias.shape)
-    #print("class_object.out_proj_weight ",class_object.__dict__['_modules']['out_proj'].weight.shape)
-    #print("class_object.out_proj_bias ",class_object.out_proj_bias.shape
-    layer['in_proj_weight'] = class_object.in_proj_weight.data.numpy()
-    layer['in_proj_bias'] = class_object.in_proj_bias.data.numpy()
-    layer['out_proj_weight'] = class_object.__dict__['_modules']['out_proj'].weight.data.numpy()
-    layer['out_proj_bias'] = class_object.__dict__['_modules']['out_proj'].bias.data.numpy()
+    from pprint import pprint
+    print("class_object.__dict__ = ")
+    pprint(class_object.__dict__)
+    layer['n_head'] = class_object.num_heads
+    layer['head_dim'] = class_object.head_dim
+    layer['feature_dim'] = class_object.embed_dim
+    print(input_shapes)
+    layer['seq_len'] = input_shapes[0][-2]
+    layer['in_proj_weight_data'] = class_object.in_proj_weight.data.numpy()
+    layer['in_proj_bias_data'] = class_object.in_proj_bias.data.numpy()
+    layer['out_proj_weight_data'] = class_object.__dict__['_modules']['out_proj'].weight.data.numpy()
+    layer['out_proj_bias_data'] = class_object.__dict__['_modules']['out_proj'].bias.data.numpy()
 
     output_shapes = input_shapes   
     return layer, output_shapes
