@@ -51,7 +51,7 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
 
     layer['name'] = layer_name
     layer['inputs'] = input_names
-    layer['class_name'] = 'TransformerEncoderLayer'
+    layer['class_name'] = 'LayerGroup'
     layer['data_format'] = 'channels_first'  # Pytorch default (can't change)
     
     subclass_object = class_object.__dict__['_modules']['self_attn']

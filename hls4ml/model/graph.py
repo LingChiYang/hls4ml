@@ -521,13 +521,15 @@ class ModelGraph:
                 `before` does not specify a correct node in sequence.
 
         """
-        if len(node.inputs) > 1:
-            raise Exception('Cannot insert a node with more than one input (for now).')
+        #if len(node.inputs) > 1:
+        #    raise Exception('Cannot insert a node with more than one input (for now).')
 
         prev_node = node.get_input_node(node.inputs[0])
         next_nodes = []
+
         for x in self.graph.values():
             overlap = [value for value in x.inputs if value in prev_node.outputs]
+
             if overlap:
                 next_nodes.append(x)
 
@@ -543,8 +545,12 @@ class ModelGraph:
             next_node = before
 
         if next_node is not None:
-            next_node.inputs[input_idx] = node.outputs[0]
-
+            a = node.outputs[0]
+            print("node inputs", node.inputs)
+            next_node.inputs[input_idx] = a
+        print("node inputs", node.inputs)
+        print(id(next_node.inputs))
+        print(id(node.inputs))
         new_graph = OrderedDict()
         for k, v in self.graph.items():
             new_graph[k] = v
