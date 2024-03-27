@@ -1,5 +1,6 @@
 from hls4ml.model.layers import Input, LayerGroup
 from hls4ml.model.optimizer import OptimizerPass
+import copy
 
 
 class ExpandLayerGroup(OptimizerPass):
@@ -9,24 +10,17 @@ class ExpandLayerGroup(OptimizerPass):
         return isinstance(node, LayerGroup)
 
     def transform(self, model, node):
-        print("before")
-        #print("layer_list:", node.get_attr('layer_list'))
-        for node in model.graph.values():
-            print(node.name)
-            print(node.inputs)
-            print(node.outputs)
-        layer_list = node.get_attr('layer_list')
+        print("node name:", node.name)  
 
         # We'll keep track of inserted Input nodes to remove later
         inserted_input_nodes = []
-
+        layer_list = node.get_attr('layer_list')
         for i, layer in enumerate(layer_list):
             kind = layer['class_name']
             name = layer['name']
-            inputs = layer.get('inputs', [])
-            outputs = layer.get('outputs', [])
-            print('inputs',inputs)
-            print('outputs',outputs)
+            inputs = copy.deepcopy(layer.get('inputs', []))
+            print("inputs:", inputs)
+            outputs = copy.deepcopy(layer.get('outputs', []))
             if name in model.graph.keys():
                 raise Exception(f'Layer names must be unique: "{name}" already found in the model graph.')
 
@@ -37,24 +31,9 @@ class ExpandLayerGroup(OptimizerPass):
                     inputs = model.graph[layer_list[i - 1]['name']].outputs.copy()
             if len(outputs) == 0:
                 outputs = [name]
-            print('inputss',inputs)
-            print('outputss',outputs)
             new_node = model.make_node(kind, name, layer, inputs, outputs)
-            for x in model.graph.values():
-                print(x.name)
-                print(x.inputs)
-                print(x.outputs)
-            print("before inserting")
             model.insert_node(new_node)
-            for x in model.graph.values():
-                print(x.name)
-                print(x.inputs)
-                print(x.outputs)
             print("inserting")
-            for node in model.graph.values():
-                print(node.name)
-                print(node.inputs)
-                print(node.outputs)
             if isinstance(new_node, Input):
                 inserted_input_nodes.append(new_node)
 
@@ -66,8 +45,11 @@ class ExpandLayerGroup(OptimizerPass):
             model.remove_node(input_node, rewire=True)
         #print all nodes in the graph and print its inputs and outputs
         print("after")
-        for node in model.graph.values():
-            print(node.name)
-            print(node.inputs)
-            print(node.outputs)
+        for x in model.graph.values():
+            print(x.name)
+            print(x.inputs)
+            print(x.outputs)
+            #if x.name == 'layers':
+            #    print('sdsdsdsd')
+            #    print(x.get_attr('layer_list')[0]['inputs'])
         return True

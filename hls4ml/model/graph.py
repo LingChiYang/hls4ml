@@ -526,7 +526,6 @@ class ModelGraph:
 
         prev_node = node.get_input_node(node.inputs[0])
         next_nodes = []
-
         for x in self.graph.values():
             overlap = [value for value in x.inputs if value in prev_node.outputs]
 
@@ -543,14 +542,9 @@ class ModelGraph:
                     )
                 )
             next_node = before
-
+        
         if next_node is not None:
-            a = node.outputs[0]
-            print("node inputs", node.inputs)
-            next_node.inputs[input_idx] = a
-        print("node inputs", node.inputs)
-        print(id(next_node.inputs))
-        print(id(node.inputs))
+            next_node.inputs[input_idx] = node.outputs[0]
         new_graph = OrderedDict()
         for k, v in self.graph.items():
             new_graph[k] = v

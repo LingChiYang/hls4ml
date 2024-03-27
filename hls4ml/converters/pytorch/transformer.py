@@ -3,7 +3,7 @@ from hls4ml.converters.utils import compute_padding_1d_pytorch, compute_padding_
 from hls4ml.converters.pytorch.core import parse_linear_layer
 
 @pytorch_handler('LayerNorm')
-def parse_layernrom_layer(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
+def parse_layernorm_layer(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
     assert 'LayerNorm' in operation
     layer = {}
 
@@ -23,14 +23,14 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
     layer = {}
 
     layer['name'] = layer_name
-    layer['inputs'] = input_names
+    layer['inputs'] = input_names.copy()
     layer['class_name'] = 'MultiheadAttention'
     layer['data_format'] = 'channels_first'
     #only implemented for in_proj_weight, in_proj_bias, out_proj_weight, out_proj_bias
     #TODO: implement for other weights and biases
     from pprint import pprint
-    print("class_object.__dict__ = ")
-    pprint(class_object.__dict__)
+    #print("class_object.__dict__ = ")
+    #pprint(class_object.__dict__)
     layer['n_head'] = class_object.num_heads
     layer['head_dim'] = class_object.head_dim
     layer['feature_dim'] = class_object.embed_dim
@@ -50,27 +50,28 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
     layer = {}
 
     layer['name'] = layer_name
-    layer['inputs'] = input_names
-    layer['class_name'] = 'LayerGroup'
+    layer['inputs'] = input_names.copy()
+    layer['class_name'] = 'TransformerEncoderLayer'
     layer['data_format'] = 'channels_first'  # Pytorch default (can't change)
     
     subclass_object = class_object.__dict__['_modules']['self_attn']
-    sub_layer, output_shapes = parse_mha_layer('MultiheadAttention', layer_name + '_self_attn', input_names, input_shapes, node, subclass_object, data_reader, config)
+    sub_layer, output_shapes = parse_mha_layer('MultiheadAttention', layer_name + '_self_attn', input_names.copy(), input_shapes, node, subclass_object, data_reader, config)
     layer['self_attn'] = sub_layer
     subclass_object = class_object.__dict__['_modules']['linear1']
-    sub_layer, output_shapes = parse_linear_layer('Linear', layer_name + '_linear1', input_names, input_shapes, node, subclass_object, data_reader, config)
+    sub_layer, output_shapes = parse_linear_layer('Linear', layer_name + '_linear1', input_names.copy(), input_shapes, node, subclass_object, data_reader, config)
     layer['linear1'] = sub_layer
     subclass_object = class_object.__dict__['_modules']['linear2']
-    sub_layer, output_shapes = parse_linear_layer('Linear', layer_name + '_linear2', input_names, input_shapes, node, subclass_object, data_reader, config)
+    sub_layer, output_shapes = parse_linear_layer('Linear', layer_name + '_linear2', input_names.copy(), input_shapes, node, subclass_object, data_reader, config)
     layer['linear2'] = sub_layer
     subclass_object = class_object.__dict__['_modules']['norm1']
-    sub_layer, output_shapes = parse_layernrom_layer('LayerNorm', layer_name + '_norm1', input_names, input_shapes, node, class_object, data_reader, config)
+    sub_layer, output_shapes = parse_layernorm_layer('LayerNorm', layer_name + '_norm1', input_names.copy(), input_shapes, node, class_object, data_reader, config)
     layer['norm1'] = sub_layer
     subclass_object = class_object.__dict__['_modules']['norm2']
-    sub_layer, output_shapes = parse_layernrom_layer('LayerNorm', layer_name + '_norm2', input_names, input_shapes, node, class_object, data_reader, config)
+    sub_layer, output_shapes = parse_layernorm_layer('LayerNorm', layer_name + '_norm2', input_names.copy(), input_shapes, node, class_object, data_reader, config)
     layer['norm2'] = sub_layer
     #print("input_shapes = ", input_shapes)
     output_shapes = input_shapes
+    print('input_names', layer['inputs'])
     return layer, output_shapes
 
 @pytorch_handler('Layers')
@@ -80,14 +81,17 @@ def parse_layers(operation, layer_name, input_names, input_shapes, node, class_o
     layer = {}
 
     layer['name'] = layer_name
-    layer['inputs'] = input_names
+    layer['inputs'] = input_names.copy()
     layer['class_name'] = 'LayerGroup'
     layer_list = []
+    prev_layer_name = 'src'
     for key, subclass_object in class_object.__dict__['_modules'].items():
         sublayer_name = layer_name + '_' + key
         if 'TransformerEncoderLayer' == subclass_object._get_name():
-            sublayer, _= parse_transenc_layer('TransformerEncoderLayer', sublayer_name, input_names, input_shapes, node, subclass_object, data_reader, config)
+            print("input_names = ", input_names)
+            sublayer, _= parse_transenc_layer('TransformerEncoderLayer', sublayer_name, [prev_layer_name], input_shapes, node, subclass_object, data_reader, config)
             layer_list.append(sublayer)
+            prev_layer_name = sublayer_name
         else:
             raise Exception(f'Layer type not supported: {subclass_object._get_name()} in {layer_name}')    
 
@@ -109,15 +113,17 @@ def parse_transenc(operation, layer_name, input_names, input_shapes, node, class
     layer = {}
 
     layer['name'] = layer_name
-    layer['inputs'] = input_names
+    layer['inputs'] = input_names.copy()
     layer['class_name'] = 'LayerGroup'
     layer_list = []
     for key, subclass_object in class_object.__dict__['_modules'].items():
         if key == 'layers':
-            sublayer, _= parse_layers('Layers', key, input_names, input_shapes, node, subclass_object, data_reader, config)
+            print("input_names = ", input_names)
+            sublayer, _= parse_layers('Layers', key, ['src'], input_shapes, node, subclass_object, data_reader, config)
             layer_list.append(sublayer)
         elif key == 'norm':
-            sublayer, _= parse_layernrom_layer('LayerNorm', key, input_names, input_shapes, node, subclass_object, data_reader, config)
+            print("input_names = ", input_names)
+            sublayer, _= parse_layernorm_layer('LayerNorm', key, ['layers'], input_shapes, node, subclass_object, data_reader, config)
             layer_list.append(sublayer)
 
     # LayerGroup info
