@@ -26,7 +26,7 @@ from hls4ml.model.layers import (
     SeparableConv2D,
     SimpleRNN,
     Softmax,
-    TransformerEncoderLayer,
+    MultiheadAttention,
 )
 from hls4ml.model.optimizer import get_backend_passes, layer_optimizer
 from hls4ml.model.types import FixedPrecisionType, IntegerPrecisionType, NamedType, PackedType
@@ -479,7 +479,7 @@ class VivadoBackend(FPGABackend):
     def init_garnet_stack(self, layer):
         self.init_garnet(layer)
 
-    @layer_optimizer(TransformerEncoderLayer)
+    @layer_optimizer(MultiheadAttention)
     def init_transformer(self, layer):
         tiling_factor = layer.model.config.get_tiling_factor(layer)
         layer.set_attr('tiling_factor', tiling_factor)

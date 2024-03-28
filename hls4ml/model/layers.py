@@ -1297,46 +1297,29 @@ class LayerNorm(Layer):
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
         self.add_output_variable([180,182], dims)
 
-class TransformerEncoderLayer(Layer):
+class MultiheadAttention(Layer):
     _expected_attributes = [
-        #Attribute('num_heads'),
-        #Attribute('head_dim_key'),
-        #Attribute('head_dim_value'),
-        #Attribute('feature_dim'),
-        #Attribute('seq_len'),
-        #WeightAttribute('in_proj_weight'),
-        #WeightAttribute('in_proj_bias'),
-        #WeightAttribute('out_proj_weight'),
-        #WeightAttribute('out_proj_bias'),
-        #TypeAttribute('in_proj_weight'),
-        #TypeAttribute('in_proj_bias'),
-        #TypeAttribute('out_proj_weight'),
-        #TypeAttribute('out_proj_bias')
+        Attribute('num_heads'),
+        Attribute('head_dim'),
+        Attribute('feature_dim'),
+        Attribute('seq_len'),
+        WeightAttribute('in_proj_weight'),
+        WeightAttribute('in_proj_bias'),
+        WeightAttribute('out_proj_weight'),
+        WeightAttribute('out_proj_bias'),
+        TypeAttribute('in_proj_weight'),
+        TypeAttribute('in_proj_bias'),
+        TypeAttribute('out_proj_weight'),
+        TypeAttribute('out_proj_bias')
     ]
 
     def initialize(self):
-        print('TransformerEncoder initialized')
+        
+        self.add_weights_variable(name='in_proj_weight')
+        self.add_weights_variable(name='in_proj_bias')
+        self.add_weights_variable(name='out_proj_weight')
+        self.add_weights_variable(name='out_proj_bias')
         from pprint import pprint
-        #pprint(self.attributes.attributes)
-        #weights_source = [
-        #        ('in_proj', 'kernel'),
-        #        ('in_proj', 'bias'),
-        #        ('out_proj', 'kernel'),
-        #        ('out_proj', 'bias')
-        #    ]
-        #
-        #for lname, wtype in weights_source:                         
-        #    #data = self.model.get_weights_data(self.name, '{lname}/{wtype}'.format(lname=lname, wtype=wtype))
-        #    if wtype == 'kernel':
-        #        vtype = 'weight'
-        #    else:
-        #        vtype = 'bias'
-#
-        #    name = '{}_{}'.format(lname, vtype)
-        #    var_name = '{}_{}{{index}}'.format(lname, vtype)
-        #    #self.add_weights_variable(name=name, var_name=var_name, data=data)
-        #print('TransformerEncoder initialized')
-        #from pprint import pprint
         #pprint(self.attributes.attributes)
         #shape = self.attributes['query_shape'][1:]
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
@@ -1440,7 +1423,7 @@ layer_map = {
     'BiasAdd': BiasAdd,
     # Pytorch-specific layers:
     #'TransformerEncoder': TransformerEncoder,
-    'TransformerEncoderLayer': TransformerEncoderLayer,
+    'MultiheadAttention': MultiheadAttention,
     'LayerNorm': LayerNorm,
 }
 

@@ -1,6 +1,7 @@
 from hls4ml.converters.pytorch_to_hls import pytorch_handler
 from hls4ml.converters.utils import compute_padding_1d_pytorch, compute_padding_2d_pytorch, parse_data_format
 from hls4ml.converters.pytorch.core import parse_linear_layer
+from hls4ml.converters.pytorch_to_hls import layer_handlers
 
 @pytorch_handler('LayerNorm')
 def parse_layernorm_layer(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
@@ -31,7 +32,7 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
     from pprint import pprint
     #print("class_object.__dict__ = ")
     #pprint(class_object.__dict__)
-    layer['n_head'] = class_object.num_heads
+    layer['num_heads'] = class_object.num_heads
     layer['head_dim'] = class_object.head_dim
     layer['feature_dim'] = class_object.embed_dim
     print(input_shapes)
@@ -51,32 +52,84 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
 
     layer['name'] = layer_name
     layer['inputs'] = input_names.copy()
-    layer['class_name'] = 'TransformerEncoderLayer'
+    layer['class_name'] = 'LayerGroup'
     layer['data_format'] = 'channels_first'  # Pytorch default (can't change)
+    layer_list = []
     
-    subclass_object = class_object.__dict__['_modules']['self_attn']
-    sub_layer, output_shapes = parse_mha_layer('MultiheadAttention', layer_name + '_self_attn', input_names.copy(), input_shapes, node, subclass_object, data_reader, config)
-    layer['self_attn'] = sub_layer
-    subclass_object = class_object.__dict__['_modules']['linear1']
-    sub_layer, output_shapes = parse_linear_layer('Linear', layer_name + '_linear1', input_names.copy(), input_shapes, node, subclass_object, data_reader, config)
-    layer['linear1'] = sub_layer
-    subclass_object = class_object.__dict__['_modules']['linear2']
-    sub_layer, output_shapes = parse_linear_layer('Linear', layer_name + '_linear2', input_names.copy(), input_shapes, node, subclass_object, data_reader, config)
-    layer['linear2'] = sub_layer
-    subclass_object = class_object.__dict__['_modules']['norm1']
-    sub_layer, output_shapes = parse_layernorm_layer('LayerNorm', layer_name + '_norm1', input_names.copy(), input_shapes, node, class_object, data_reader, config)
-    layer['norm1'] = sub_layer
-    subclass_object = class_object.__dict__['_modules']['norm2']
-    sub_layer, output_shapes = parse_layernorm_layer('LayerNorm', layer_name + '_norm2', input_names.copy(), input_shapes, node, class_object, data_reader, config)
-    layer['norm2'] = sub_layer
-    #print("input_shapes = ", input_shapes)
+    prev_layer_name = input_names.copy()
+    if class_object.__dict__['norm_first']:
+        subclass_object = class_object.__dict__['_modules']['norm1']
+        sublayer, _= layer_handlers['LayerNorm']('LayerNorm', layer_name+'_norm1', prev_layer_name, input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['self_attn']
+        sublayer, _= layer_handlers['MultiheadAttention']('MultiheadAttention', layer_name+'_self_attn', [layer_name+'_norm1'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        sublayer, _= layer_handlers['add']('add', layer_name+'_add1', [layer_name+'_self_attn', prev_layer_name[0]], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['norm2']
+        sublayer, _= layer_handlers['LayerNorm']('LayerNorm', layer_name+'_norm2', [layer_name+'_add1'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['linear1']
+        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear1', [layer_name+'_norm2'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['linear2']
+        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear2', [layer_name+'_linear1'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        sublayer, _= layer_handlers['add']('add', layer_name+'_add2', [layer_name+'_linear2', layer_name+'_norm2'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+    else:
+        subclass_object = class_object.__dict__['_modules']['self_attn']
+        sublayer, _= layer_handlers['MultiheadAttention']('MultiheadAttention', layer_name+'_self_attn', prev_layer_name, input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        sublayer, _= layer_handlers['add']('add', layer_name+'_add1', [layer_name+'_self_attn', prev_layer_name[0]], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['norm1']
+        sublayer, _= layer_handlers['LayerNorm']('LayerNorm', layer_name+'_norm1', [layer_name+'_add1'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['linear1']
+        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear1', [layer_name+'_norm1'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['linear2']
+        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear2', [layer_name+'_linear1'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        sublayer, _= layer_handlers['add']('add', layer_name+'_add2', [layer_name+'_linear2', layer_name+'_norm1'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+
+        subclass_object = class_object.__dict__['_modules']['norm2']
+        sublayer, _= layer_handlers['LayerNorm']('LayerNorm', layer_name+'_norm2', [layer_name+'_add2'], input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+        
+    #for key, subclass_object in class_object.__dict__['_modules'].items():
+    #    class_name = subclass_object.__class__.__name__
+    #    if class_name == 'Dropout':
+    #        continue
+    #    sublayer_name = layer_name + '_' + key
+    #    sublayer, _= layer_handlers[class_name](class_name, sublayer_name, prev_layer_name, input_shapes, node, subclass_object, data_reader, config)
+    #    layer_list.append(sublayer)
+    #    prev_layer_name = [sublayer_name]
+
+    layer['output_shape'] = input_shapes
+    layer['layer_list'] = layer_list
+    layer['input_layers'] = []
+    layer['output_layers'] = []
+    layer['data_reader'] = data_reader
     output_shapes = input_shapes
-    print('input_names', layer['inputs'])
     return layer, output_shapes
 
-@pytorch_handler('Layers')
+@pytorch_handler('ModuleList')
 def parse_layers(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
-    assert 'Layers' in operation
+    assert 'ModuleList' in operation
 
     layer = {}
 
@@ -84,16 +137,13 @@ def parse_layers(operation, layer_name, input_names, input_shapes, node, class_o
     layer['inputs'] = input_names.copy()
     layer['class_name'] = 'LayerGroup'
     layer_list = []
-    prev_layer_name = 'src'
+    prev_layer_name = input_names.copy()
     for key, subclass_object in class_object.__dict__['_modules'].items():
         sublayer_name = layer_name + '_' + key
-        if 'TransformerEncoderLayer' == subclass_object._get_name():
-            print("input_names = ", input_names)
-            sublayer, _= parse_transenc_layer('TransformerEncoderLayer', sublayer_name, [prev_layer_name], input_shapes, node, subclass_object, data_reader, config)
-            layer_list.append(sublayer)
-            prev_layer_name = sublayer_name
-        else:
-            raise Exception(f'Layer type not supported: {subclass_object._get_name()} in {layer_name}')    
+        class_name = subclass_object.__class__.__name__
+        sublayer, _= layer_handlers[class_name](class_name, sublayer_name, prev_layer_name, input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+        prev_layer_name = [sublayer_name]
 
     # LayerGroup info
     layer['output_shape'] = input_shapes
@@ -116,15 +166,20 @@ def parse_transenc(operation, layer_name, input_names, input_shapes, node, class
     layer['inputs'] = input_names.copy()
     layer['class_name'] = 'LayerGroup'
     layer_list = []
+    prev_layer_name = input_names.copy()
     for key, subclass_object in class_object.__dict__['_modules'].items():
-        if key == 'layers':
-            print("input_names = ", input_names)
-            sublayer, _= parse_layers('Layers', key, ['src'], input_shapes, node, subclass_object, data_reader, config)
-            layer_list.append(sublayer)
-        elif key == 'norm':
-            print("input_names = ", input_names)
-            sublayer, _= parse_layernorm_layer('LayerNorm', key, ['layers'], input_shapes, node, subclass_object, data_reader, config)
-            layer_list.append(sublayer)
+        class_name = subclass_object.__class__.__name__
+        sublayer, _= layer_handlers[class_name](class_name, key, prev_layer_name, input_shapes, node, subclass_object, data_reader, config)
+        layer_list.append(sublayer)
+        prev_layer_name = [key]
+        #if key == 'layers':
+        #    print("input_names = ", input_names)
+        #    sublayer, _= parse_layers('Layers', key, ['src'], input_shapes, node, subclass_object, data_reader, config)
+        #    layer_list.append(sublayer)
+        #elif key == 'norm':
+        #    print("input_names = ", input_names)
+        #    sublayer, _= parse_layernorm_layer('LayerNorm', key, ['layers'], input_shapes, node, subclass_object, data_reader, config)
+        #    layer_list.append(sublayer)
 
     # LayerGroup info
     layer['output_shape'] = input_shapes

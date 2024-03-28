@@ -523,7 +523,6 @@ class ModelGraph:
         """
         #if len(node.inputs) > 1:
         #    raise Exception('Cannot insert a node with more than one input (for now).')
-
         prev_node = node.get_input_node(node.inputs[0])
         next_nodes = []
         for x in self.graph.values():
@@ -545,6 +544,7 @@ class ModelGraph:
         
         if next_node is not None:
             next_node.inputs[input_idx] = node.outputs[0]
+
         new_graph = OrderedDict()
         for k, v in self.graph.items():
             new_graph[k] = v
@@ -659,6 +659,7 @@ class ModelGraph:
         return variables
 
     def get_layer_output_variable(self, output_name):
+        print("output_name:", self.output_vars)
         return self.output_vars.get(output_name, None)
 
     def get_weight_variables(self):

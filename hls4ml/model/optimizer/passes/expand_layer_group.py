@@ -10,8 +10,6 @@ class ExpandLayerGroup(OptimizerPass):
         return isinstance(node, LayerGroup)
 
     def transform(self, model, node):
-        print("node name:", node.name)  
-
         # We'll keep track of inserted Input nodes to remove later
         inserted_input_nodes = []
         layer_list = node.get_attr('layer_list')
@@ -19,7 +17,6 @@ class ExpandLayerGroup(OptimizerPass):
             kind = layer['class_name']
             name = layer['name']
             inputs = copy.deepcopy(layer.get('inputs', []))
-            print("inputs:", inputs)
             outputs = copy.deepcopy(layer.get('outputs', []))
             if name in model.graph.keys():
                 raise Exception(f'Layer names must be unique: "{name}" already found in the model graph.')
@@ -33,23 +30,19 @@ class ExpandLayerGroup(OptimizerPass):
                 outputs = [name]
             new_node = model.make_node(kind, name, layer, inputs, outputs)
             model.insert_node(new_node)
-            print("inserting")
             if isinstance(new_node, Input):
                 inserted_input_nodes.append(new_node)
 
         rewire = not node.outputs[0] in model.outputs
 
+        next_nodes = node.get_output_nodes()
+        for next_node in next_nodes:
+            if next_node.get_attr('layer_list') is not None:
+                for sub_node in next_node.get_attr('layer_list'):
+                    sub_node['inputs'] = [node.inputs.copy()[0] if x == node.name else x for x in sub_node['inputs']]
+
         model.remove_node(node, rewire)
 
         for input_node in inserted_input_nodes:
             model.remove_node(input_node, rewire=True)
-        #print all nodes in the graph and print its inputs and outputs
-        print("after")
-        for x in model.graph.values():
-            print(x.name)
-            print(x.inputs)
-            print(x.outputs)
-            #if x.name == 'layers':
-            #    print('sdsdsdsd')
-            #    print(x.get_attr('layer_list')[0]['inputs'])
         return True

@@ -1,7 +1,7 @@
 from hls4ml.backends.backend import get_backend
 from hls4ml.backends.template import FunctionCallTemplate, LayerConfigTemplate
 from hls4ml.model.layers import (
-    TransformerEncoderLayer,
+    MultiheadAttention,
     LayerNorm,
 )
 
@@ -24,14 +24,14 @@ transformer_layer_template = """struct config{index} : nnet::transformer_config 
     typedef {mha_layernorm_fifo_t.name} add_fifo_t;
 }};\n"""
 
-transformer_mha_template = """struct mha_config{index} : nnet::mha_config {{
+mha_template = """struct mha_config{index} : nnet::mha_config {{
     static const unsigned n_head = {n_head};
     static const unsigned head_dim = {head_dim};
     static const unsigned feature_dim = {feature_dim};
     static const unsigned seq_len = {seq_len};
-    static const unsigned qkv_ram_style = nnet::{qkv_ram_style};
-    static const unsigned attn_ram_style = nnet::{attn_ram_style};
-    static const unsigned out_ram_style = nnet::{out_ram_style};
+    static const unsigned qkv_ram_style = nnet::block;
+    static const unsigned attn_ram_style = nnet::block;
+    static const unsigned out_ram_style = nnet::block;
     static const unsigned tiling_factor[{rank}] = {tiling_factor};
 }};\n"""
 
@@ -96,9 +96,9 @@ transformer_function_template = 'nnet::transformer<{input_t}, {output_t}, {confi
 #print('transformer template',transformer_function_template)
 transformer_include_list = ['nnet_utils/nnet_recurrent.h']
 
-class TransformerConfigTemplate(LayerConfigTemplate):
+class MHAConfigTemplate(LayerConfigTemplate):
     def __init__(self):
-        super().__init__((TransformerEncoderLayer))
+        super().__init__((M))
         self.template = transformer_layer_template
         self.transformer_mha_template  = transformer_mha_template 
         self.activ_template = activ_template
