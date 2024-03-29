@@ -22,8 +22,9 @@
 namespace nnet {
 
 // Common type definitions
-enum io_type { io_parallel = 0, io_stream };
+enum io_type { io_parallel = 0, io_stream, io_tile_stream };
 enum strategy { latency, resource };
+enum ram_style { block = 0, lut, uram };
 
 /* ---
  * Balanced tree reduce implementation.

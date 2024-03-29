@@ -25,14 +25,14 @@ transformer_layer_template = """struct config{index} : nnet::transformer_config 
 }};\n"""
 
 mha_template = """struct mha_config{index} : nnet::mha_config {{
-    static const unsigned n_head = {n_head};
+    static const unsigned n_head = {num_heads};
     static const unsigned head_dim = {head_dim};
     static const unsigned feature_dim = {feature_dim};
     static const unsigned seq_len = {seq_len};
     static const unsigned qkv_ram_style = nnet::block;
     static const unsigned attn_ram_style = nnet::block;
     static const unsigned out_ram_style = nnet::block;
-    static const unsigned tiling_factor[{rank}] = {tiling_factor};
+    static constexpr unsigned tiling_factor[3] = {tiling_factor};
 }};\n"""
 
 softmax_template = """struct softmax_config{index} : nnet::activ_config {{
@@ -86,7 +86,7 @@ ffn_layernorm_template = """struct ffn_layernorm_config{index} : nnet::layernorm
     typedef {table_t.name} table_t;
 }};\n"""
 
-transformer_function_template = 'nnet::transformer<{input_t}, {output_t}, {config}>({input_qkv}, {output}, \
+transformer_function_template = 'nnet::MultiheadAttention<{input_t}, {output_t}, {config}>({input_qkv}, {output}, \
                                                                                     {w_mha_in_proj}, {b_mha_in_proj}, \
                                                                                     {mask_mha}, \
                                                                                     {w_mha_out_proj}, {b_mha_out_proj},\
@@ -98,27 +98,18 @@ transformer_include_list = ['nnet_utils/nnet_recurrent.h']
 
 class MHAConfigTemplate(LayerConfigTemplate):
     def __init__(self):
-        super().__init__((M))
-        self.template = transformer_layer_template
-        self.transformer_mha_template  = transformer_mha_template 
-        self.activ_template = activ_template
-        self.transformer_ffn_template = transformer_ffn_template
-        self.softmax_template = softmax_template
-        self.mha_layernorm_template = mha_layernorm_template
-        self.ffn_layernorm_template = ffn_layernorm_template
+        super().__init__((MultiheadAttention))
+        self.mha_template  = mha_template 
 
     def format(self, node):
         params = self._default_config_params(node)
-        params['config_mha'] = f'mha_config{node.index}'
-        params['config_ffn'] = f'ffn_config{node.index}'
+        #params['config_mha'] = f'mha_config{node.index}'
+        #params['config_ffn'] = f'ffn_config{node.index}'
         #print(node.get_input_variable().dim_names)
         #print(node.get_output_variable().dim_names)
         #print(params)
-        mha_params = node.get_attr('self_attn')
-        mha_params['index'] = node.index
-        from pprint import pprint
-        pprint(mha_params.keys())
-        mha_config = self.transformer_mha_template.format(**mha_params)
-        ffn_config = self.transformer_ffn_template.format(**node.get_attr('linear1'))
-        transformer_config = self.template.format(**params)
-        return transformer_config
+        params['tiling_factor'] = '{'+','.join([str(x) for x in params['tiling_factor']])+'}'
+        mha_config = self.mha_template.format(**params)
+        #ffn_config = self.transformer_ffn_template.format(**node.get_attr('linear1'))
+        #transformer_config = self.template.format(**params)
+        return mha_config

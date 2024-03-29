@@ -147,10 +147,10 @@ class HLSConfig:
         if tf is None:
             tf = self.layer_type_tf.get(layer.class_name.lower())
         if tf is None:
-            tf = self.model_rf
+            tf = self.model_tf
 
         if tf is None:
-            raise Exception(f'No reuse factor for {layer.name} found and no default specified.')
+            raise Exception(f'No tiling factor for {layer.name} found and no default specified.')
 
         return tf
 
@@ -659,7 +659,6 @@ class ModelGraph:
         return variables
 
     def get_layer_output_variable(self, output_name):
-        print("output_name:", self.output_vars)
         return self.output_vars.get(output_name, None)
 
     def get_weight_variables(self):
