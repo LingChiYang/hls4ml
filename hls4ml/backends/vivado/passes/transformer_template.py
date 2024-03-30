@@ -86,15 +86,9 @@ ffn_layernorm_template = """struct ffn_layernorm_config{index} : nnet::layernorm
     typedef {table_t.name} table_t;
 }};\n"""
 
-transformer_function_template = 'nnet::MultiheadAttention<{input_t}, {output_t}, {config}>({input_qkv}, {output}, \
-                                                                                    {w_mha_in_proj}, {b_mha_in_proj}, \
-                                                                                    {mask_mha}, \
-                                                                                    {w_mha_out_proj}, {b_mha_out_proj},\
-                                                                                    {w_mha_norm}, {b_mha_norm},\
-                                                                                    {w_ffn_in_proj}, {b_ffn_in_Proj},\
-                                                                                    {w_ffn_norm}, {b_ffn_norm});'
+mha_function_template = 'nnet::MultiheadAttention<{input_t}, {output_t}, {config}>({input}, {output}, {in_proj_weight}, {in_proj_bias}, {out_proj_weight}, {out_proj_bias});'
 #print('transformer template',transformer_function_template)
-transformer_include_list = ['nnet_utils/nnet_recurrent.h']
+mha_include_list = []
 
 class MHAConfigTemplate(LayerConfigTemplate):
     def __init__(self):
@@ -113,3 +107,14 @@ class MHAConfigTemplate(LayerConfigTemplate):
         #ffn_config = self.transformer_ffn_template.format(**node.get_attr('linear1'))
         #transformer_config = self.template.format(**params)
         return mha_config
+
+class MHAFunctionTemplate(FunctionCallTemplate):
+    def __init__(self):
+        super().__init__((MultiheadAttention), include_header=mha_include_list)
+        self.templates = mha_function_template
+
+    def format(self, node):
+        params = self._default_function_params(node)
+        print('MHAFunctionTemplate')
+        print(node.attributes.attributes.keys())
+        return self.templates.format(**params)
