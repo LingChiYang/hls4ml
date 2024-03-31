@@ -24,7 +24,7 @@ transformer_layer_template = """struct config{index} : nnet::transformer_config 
     typedef {mha_layernorm_fifo_t.name} add_fifo_t;
 }};\n"""
 
-mha_template = """struct mha_config{index} : nnet::mha_config {{
+mha_template = """struct config{index} : nnet::mha_config {{
     static const unsigned n_head = {num_heads};
     static const unsigned head_dim = {head_dim};
     static const unsigned feature_dim = {feature_dim};
@@ -86,9 +86,9 @@ ffn_layernorm_template = """struct ffn_layernorm_config{index} : nnet::layernorm
     typedef {table_t.name} table_t;
 }};\n"""
 
-mha_function_template = 'nnet::MultiheadAttention<{input_t}, {output_t}, {config}>({input}, {output}, {in_proj_weight}, {in_proj_bias}, {out_proj_weight}, {out_proj_bias});'
+mha_function_template = 'nnet::MultiHeadAttention<{input_t}, {output_t}, {config}>({input}, {output}, {iprj_w}, {iprj_b}, {oprj_w}, {oprj_b});'
 #print('transformer template',transformer_function_template)
-mha_include_list = []
+mha_include_list = ["nnet_utils/nnet_multiheadattention_stream.h"]
 
 class MHAConfigTemplate(LayerConfigTemplate):
     def __init__(self):
@@ -115,6 +115,10 @@ class MHAFunctionTemplate(FunctionCallTemplate):
 
     def format(self, node):
         params = self._default_function_params(node)
+        params['iprj_w'] = node.get_weights('in_proj_weight').name
+        params['iprj_b'] = node.get_weights('in_proj_bias').name
+        params['oprj_w'] = node.get_weights('out_proj_weight').name
+        params['oprj_b'] = node.get_weights('out_proj_bias').name
         print('MHAFunctionTemplate')
-        print(node.attributes.attributes.keys())
+        print(params.keys())
         return self.templates.format(**params)

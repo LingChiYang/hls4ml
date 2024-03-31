@@ -32,6 +32,34 @@ template <typename T, unsigned N> struct array {
     }
 };
 
+template <typename T, unsigned M, unsigned N>
+struct array2d {
+    typedef T value_type;
+    static const unsigned rows = M;
+    static const unsigned cols = N;
+
+    T data[M][N];
+
+    T* operator[](size_t row) { return data[row]; }
+
+    const T* operator[](size_t row) const { return data[row]; }
+
+    array2d& operator=(const array2d& other) {
+        if (&other == this)
+            return *this;
+
+        assert(M == other.rows && N == other.cols && "Array dimensions must match.");
+
+        for (unsigned i = 0; i < M; i++) {
+            for (unsigned j = 0; j < N; j++) {
+                #pragma HLS UNROLL
+                data[i][j] = other.data[i][j];
+            }
+        }
+        return *this;
+    }
+};
+/*
 template <typename T, unsigned N, unsigned M> struct array2d {
     typedef T value_type;
     static const unsigned size1 = N;
@@ -40,9 +68,9 @@ template <typename T, unsigned N, unsigned M> struct array2d {
 
     T data[N][M];
 
-    T &operator[](size_t pos1, size_t pos2) { return data[pos1][pos2]; }
+    T &operator[][](size_t pos1, size_t pos2) { return data[pos1][pos2]; }
 
-    const T &operator[](size_t pos1, size_t pos2) const { return data[pos1][pos2]; }
+    const T &operator[][](size_t pos1, size_t pos2) const { return data[pos1][pos2]; }
 
     array2d &operator=(const array2d &other) {
         if (&other == this)
@@ -59,7 +87,7 @@ template <typename T, unsigned N, unsigned M> struct array2d {
         return *this;
     }
 };
-
+*/
 // Generic lookup-table implementation, for use in approximations of math functions
 template <typename T, unsigned N, T (*func)(T)> class lookup_table {
   public:

@@ -8,11 +8,10 @@
 #include <iostream>
 #include <math.h>
 #include "nnet_helpers.h"
-#include "nnet_dense_array_stream.h"
 
 namespace nnet {
 
-struct mha_config10 : nnet::mha_config {
+struct mha_config {
     static const unsigned n_head = 1;
     static const unsigned head_dim = 100;
     static const unsigned feature_dim = 100;
@@ -166,21 +165,17 @@ void Update_RowMaxSum(
 
 
 template<class data_T, class res_T, typename CONFIG_T>
-void multiheadattention(
+void MultiHeadAttention(
     hls::stream<data_T>    &data_qkv,
     hls::stream<res_T>     &res,
+    typename CONFIG_T::weight_t  in_proj_weight[3][CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::bias_t    in_proj_bias[3][CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
     typename CONFIG_T::weight_t  attention_output_weight[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // num_heads,head_size_v,dim
-    typename CONFIG_T::bias_t    attention_output_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]],
-    typename CONFIG_T::weight_t  key_weight[CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],  // n_head,dim,head_dim
-    typename CONFIG_T::bias_t    key_bias[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  query_weight[CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]], //same shape as key
-    typename CONFIG_T::bias_t    query_bias[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  value_weight[CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::bias_t    value_bias[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]])
+    typename CONFIG_T::bias_t    attention_output_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]])
 {
 
-    data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    data_T data_vk_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    //data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    data_T data_qkv_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     data_T K[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T V[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T Q[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
@@ -194,10 +189,10 @@ void multiheadattention(
     //#pragma HLS STREAM off variable=O depth=2
     //#pragma HLS STREAM off variable=M depth=2
 
-    #pragma HLS ARRAY_PARTITION variable=data_q_buf complete dim=3
-    #pragma HLS ARRAY_PARTITION variable=data_q_buf complete dim=4
-    #pragma HLS ARRAY_PARTITION variable=data_vk_buf complete dim=3
-    #pragma HLS ARRAY_PARTITION variable=data_vk_buf complete dim=4
+    #pragma HLS ARRAY_PARTITION variable=data_qkv_buf complete dim=3
+    #pragma HLS ARRAY_PARTITION variable=data_qkv_buf complete dim=4
+    //#pragma HLS ARRAY_PARTITION variable=data_vk_buf complete dim=3
+    //#pragma HLS ARRAY_PARTITION variable=data_vk_buf complete dim=4
     #pragma HLS ARRAY_PARTITION variable=K complete dim=1
     #pragma HLS ARRAY_PARTITION variable=K complete dim=4
     #pragma HLS ARRAY_PARTITION variable=K complete dim=5
@@ -251,8 +246,8 @@ void multiheadattention(
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1
-                    data_q_buf[i][j][ii][jj] = data_q[j*CONFIG_T::tiling_factor[1] + jj].read();
-                    data_vk_buf[i][j][ii][jj] = data_vk[j*CONFIG_T::tiling_factor[1] + jj].read();
+                    data_qkv_buf[i][j][ii][jj] = data_qkv.read()[ii][jj];
+                    //data_vk_buf[i][j][ii][jj] = data_vk[j*CONFIG_T::tiling_factor[1] + jj].read();
                     //data_q_buf[i][j][ii][jj].write(data_q[j*CONFIG_T::tiling_factor[1] + jj].read());
                     //data_vk_buf[i][j][ii][jj].write(data_vk[j*CONFIG_T::tiling_factor[1] + jj].read());
                 }
@@ -300,9 +295,9 @@ void multiheadattention(
                             }
                             for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                                 #pragma HLS UNROLL
-                                tmp_k[h][kk] += data_vk_buf[i][j][ii][jj]*key_weight[h][j][k][jj][kk],
-                                tmp_v[h][kk] += data_vk_buf[i][j][ii][jj]*value_weight[h][j][k][jj][kk],
-                                tmp_q[h][kk] += data_q_buf[i][j][ii][jj]*query_weight[h][j][k][jj][kk];
+                                tmp_k[h][kk] += data_qkv_buf[i][j][ii][jj]*key_weight[h][j][k][jj][kk],
+                                tmp_v[h][kk] += data_qkv_buf[i][j][ii][jj]*value_weight[h][j][k][jj][kk],
+                                tmp_q[h][kk] += data_qkv_buf[i][j][ii][jj]*query_weight[h][j][k][jj][kk];
                             }
                             K[h][i][k][ii][kk] = tmp_k[h][kk];
                             V[h][i][k][ii][kk] = tmp_v[h][kk];
