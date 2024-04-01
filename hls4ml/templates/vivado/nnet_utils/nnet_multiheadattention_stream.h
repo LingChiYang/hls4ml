@@ -170,8 +170,8 @@ void MultiHeadAttention(
     hls::stream<res_T>     &res,
     typename CONFIG_T::weight_t  in_proj_weight[3][CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
     typename CONFIG_T::bias_t    in_proj_bias[3][CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  attention_output_weight[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // num_heads,head_size_v,dim
-    typename CONFIG_T::bias_t    attention_output_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]])
+    typename CONFIG_T::weight_t  out_proj_weight[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // num_heads,head_size_v,dim
+    typename CONFIG_T::bias_t    out_proj_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]])
 {
 
     //data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
@@ -246,7 +246,7 @@ void MultiHeadAttention(
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1
-                    data_qkv_buf[i][j][ii][jj] = data_qkv.read()[ii][jj];
+                    data_qkv_buf[i][j][ii][jj] = data_qkv.read();
                     //data_vk_buf[i][j][ii][jj] = data_vk[j*CONFIG_T::tiling_factor[1] + jj].read();
                     //data_q_buf[i][j][ii][jj].write(data_q[j*CONFIG_T::tiling_factor[1] + jj].read());
                     //data_vk_buf[i][j][ii][jj].write(data_vk[j*CONFIG_T::tiling_factor[1] + jj].read());
@@ -295,9 +295,9 @@ void MultiHeadAttention(
                             }
                             for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                                 #pragma HLS UNROLL
-                                tmp_k[h][kk] += data_qkv_buf[i][j][ii][jj]*key_weight[h][j][k][jj][kk],
-                                tmp_v[h][kk] += data_qkv_buf[i][j][ii][jj]*value_weight[h][j][k][jj][kk],
-                                tmp_q[h][kk] += data_qkv_buf[i][j][ii][jj]*query_weight[h][j][k][jj][kk];
+                                tmp_k[h][kk] += data_qkv_buf[i][j][ii][jj]*in_proj_weight[1][h][j][k][jj][kk],
+                                tmp_v[h][kk] += data_qkv_buf[i][j][ii][jj]*in_proj_weight[2][h][j][k][jj][kk],
+                                tmp_q[h][kk] += data_qkv_buf[i][j][ii][jj]*in_proj_weight[0][h][j][k][jj][kk];
                             }
                             K[h][i][k][ii][kk] = tmp_k[h][kk];
                             V[h][i][k][ii][kk] = tmp_v[h][kk];
@@ -436,7 +436,7 @@ void MultiHeadAttention(
                     for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                         #pragma HLS UNROLL
                         if (k==0){
-                            tmp_m = attention_output_bias[j][jj];
+                            tmp_m = out_proj_bias[j][jj];
                         } else {
                             tmp_m = M[i][j][ii][jj];
                         }
@@ -444,7 +444,7 @@ void MultiHeadAttention(
                             #pragma HLS UNROLL
                             for (int h = 0; h < CONFIG_T::num_heads; h++) {//16dsp
                                 #pragma HLS UNROLL
-                                tmp_m += O[h][i][k][ii][kk] * attention_output_weight[h][k][j][kk][jj];
+                                tmp_m += O[h][i][k][ii][kk] * out_proj_weight[h][k][j][kk][jj];
                             }
                         }
                         M[i][j][ii][jj] = tmp_m;
@@ -460,7 +460,7 @@ void MultiHeadAttention(
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1
-                    res[j*CONFIG_T::tiling_factor[1] + jj].write(M[i][j][ii][jj]);
+                    res.write(M[i][j][ii][jj]);
                 }
             }
         }

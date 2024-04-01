@@ -26,9 +26,9 @@ class TransformTypes(GlobalOptimizerPass):
         for out_name, var in node.variables.items():
             if io_type == 'io_stream':
                 if isinstance(var, InplaceTensorVariable):
-                    new_var = self.inplace_stream_var_converter.convert(var)
+                    new_var = self.inplace_stream_var_converter.convert(var, n_pack=2)
                 else:
-                    new_var = self.stream_var_converter.convert(var)
+                    new_var = self.stream_var_converter.convert(var, n_pack=-2)
             elif io_type == 'io_serial':
                 new_var = self.array_var_converter.convert(var, pragma='stream')
             elif io_type == 'io_parallel':
