@@ -1291,11 +1291,9 @@ class LayerNorm(Layer):
     _expected_attributes = [
     ]
     def initialize(self):
-        self.set_attr('block_x', 1)
-        self.set_attr('block_y', 1)
-        self.set_attr('block_k', 1)
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
-        self.add_output_variable([180,182], dims)
+        shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
+        self.add_output_variable(shape, dims)
 
 class MultiheadAttention(Layer):
     _expected_attributes = [
@@ -1323,7 +1321,10 @@ class MultiheadAttention(Layer):
         #pprint(self.attributes.attributes)
         #shape = self.attributes['query_shape'][1:]
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
-        self.add_output_variable([180,182], dims)
+        print('ssssssssssssxxxx')
+        print(self.attributes.attributes.keys())
+        shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
+        self.add_output_variable(shape, dims)
 
 class LayerGroup(Layer):
     _expected_attributes = [

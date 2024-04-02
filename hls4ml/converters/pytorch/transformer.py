@@ -7,7 +7,8 @@ from hls4ml.converters.pytorch_to_hls import layer_handlers
 def parse_layernorm_layer(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
     assert 'LayerNorm' in operation
     layer = {}
-
+    layer['feature_dim'] = input_shapes[0][-1]
+    layer['seq_len'] = input_shapes[0][-2]
     layer['name'] = layer_name
     layer['inputs'] = input_names
     layer['class_name'] = 'LayerNorm'
@@ -35,7 +36,6 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
     layer['num_heads'] = class_object.num_heads
     layer['head_dim'] = class_object.head_dim
     layer['feature_dim'] = class_object.embed_dim
-    print(input_shapes)
     layer['seq_len'] = input_shapes[0][-2]
     layer['in_proj_weight_data'] = class_object.in_proj_weight.data.numpy()
     layer['in_proj_bias_data'] = class_object.in_proj_bias.data.numpy()

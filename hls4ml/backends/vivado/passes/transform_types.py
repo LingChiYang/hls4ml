@@ -26,9 +26,14 @@ class TransformTypes(GlobalOptimizerPass):
         for out_name, var in node.variables.items():
             if io_type == 'io_stream':
                 if isinstance(var, InplaceTensorVariable):
-                    new_var = self.inplace_stream_var_converter.convert(var, n_pack=2)
+                    new_var = self.inplace_stream_var_converter.convert(var)
                 else:
-                    new_var = self.stream_var_converter.convert(var, n_pack=-2)
+                    new_var = self.stream_var_converter.convert(var)
+            elif io_type == 'io_tile_stream':
+                tf_T = node.get_attr('tiling_factor')[0]
+                tf_N = node.get_attr('tiling_factor')[1]
+                var.shape = [var.shape[0]//tf_T, var.shape[1]//tf_N, tf_T*tf_N]
+                new_var = self.stream_var_converter.convert(var)
             elif io_type == 'io_serial':
                 new_var = self.array_var_converter.convert(var, pragma='stream')
             elif io_type == 'io_parallel':

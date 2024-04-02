@@ -384,6 +384,11 @@ class StreamVariableConverter:
         if depth == 0:
             depth = np.prod(tensor_var.shape) // tensor_var.shape[-1]
         tensor_var.pragma = ('stream', depth)
+        #
+        print('sssssssssssssss')
+        print(tensor_var)
+        print(tensor_var.shape)
+        #
         tensor_var.type = self.type_converter.convert(
             PackedType(tensor_var.type.name, tensor_var.type.precision, tensor_var.shape[-1], n_pack)
         )
