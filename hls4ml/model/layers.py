@@ -1291,6 +1291,8 @@ class LayerNorm(Layer):
     _expected_attributes = [
     ]
     def initialize(self):
+        self.add_weights_variable(name='scale')
+        self.add_weights_variable(name='bias')
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
         shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
         self.add_output_variable(shape, dims)
@@ -1317,12 +1319,7 @@ class MultiheadAttention(Layer):
         self.add_weights_variable(name='in_proj_bias')
         self.add_weights_variable(name='out_proj_weight')
         self.add_weights_variable(name='out_proj_bias')
-        from pprint import pprint
-        #pprint(self.attributes.attributes)
-        #shape = self.attributes['query_shape'][1:]
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
-        print('ssssssssssssxxxx')
-        print(self.attributes.attributes.keys())
         shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
         self.add_output_variable(shape, dims)
 
@@ -1337,8 +1334,6 @@ class LayerGroup(Layer):
 
     def initialize(self):
         print('LayerGroup initialized')
-        from pprint import pprint
-        #pprint(self.attributes.attributes)
         shape = self.get_attr('output_shape')
         print(shape)
         if shape[0] is None:

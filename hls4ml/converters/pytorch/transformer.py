@@ -11,6 +11,8 @@ def parse_layernorm_layer(operation, layer_name, input_names, input_shapes, node
     layer['seq_len'] = input_shapes[0][-2]
     layer['name'] = layer_name
     layer['inputs'] = input_names
+    layer['scale_data'] = class_object.weight.data.numpy()
+    layer['bias_data'] = class_object.bias.data.numpy()
     layer['class_name'] = 'LayerNorm'
     layer['data_format'] = 'channels_first'
     #only implemented for in_proj_weight, in_proj_bias, out_proj_weight, out_proj_bias
@@ -30,9 +32,6 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
     layer['data_format'] = 'channels_first'
     #only implemented for in_proj_weight, in_proj_bias, out_proj_weight, out_proj_bias
     #TODO: implement for other weights and biases
-    from pprint import pprint
-    #print("class_object.__dict__ = ")
-    #pprint(class_object.__dict__)
     layer['num_heads'] = class_object.num_heads
     layer['head_dim'] = class_object.head_dim
     layer['feature_dim'] = class_object.embed_dim

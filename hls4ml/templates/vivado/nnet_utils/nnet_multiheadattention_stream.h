@@ -289,9 +289,9 @@ void MultiHeadAttention(
                         for (int kk = 0; kk < CONFIG_T::tiling_factor[2]; kk++) {
                             #pragma HLS UNROLL
                             if (j==0){
-                                tmp_k[h][kk] = key_bias[h][k][kk];
-                                tmp_v[h][kk] = value_bias[h][k][kk];
-                                tmp_q[h][kk] = query_bias[h][k][kk];
+                                tmp_k[h][kk] = in_proj_bias[1][h][k][kk];
+                                tmp_v[h][kk] = in_proj_bias[2][h][k][kk];
+                                tmp_q[h][kk] = in_proj_bias[0][h][k][kk];
                             }
                             for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                                 #pragma HLS UNROLL

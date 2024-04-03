@@ -27,6 +27,7 @@ from hls4ml.model.layers import (
     SimpleRNN,
     Softmax,
     MultiheadAttention,
+    LayerNorm,
 )
 from hls4ml.model.optimizer import get_backend_passes, layer_optimizer
 from hls4ml.model.types import FixedPrecisionType, IntegerPrecisionType, NamedType, PackedType
@@ -48,11 +49,26 @@ class VivadoBackend(FPGABackend):
             GRU,
         ]
 
+        transformer_layers = [
+            MultiheadAttention,
+            LayerNorm,
+            #FFN,
+            #PositionEncoding,
+        ]
+
         for layer in rnn_layers:
             attrs = self.attribute_map.get(layer, [])
             attrs.append(ConfigurableAttribute('recurrent_reuse_factor', default=1))
             attrs.append(ConfigurableAttribute('static', value_type=bool, default=True))
             attrs.append(ConfigurableAttribute('table_size', default=1024))
+            attrs.append(TypeAttribute('table', default=FixedPrecisionType(18, 8)))
+            self.attribute_map[layer] = attrs
+
+        for layer in transformer_layers:
+            attrs = self.attribute_map.get(layer, [])
+            attrs.append(ConfigurableAttribute('tiling_factor', default=[1, 1, 1]))
+            attrs.append(ConfigurableAttribute('table_size', default=1024))
+            attrs.append(ConfigurableAttribute('table_range', default=1))
             attrs.append(TypeAttribute('table', default=FixedPrecisionType(18, 8)))
             self.attribute_map[layer] = attrs
 
@@ -480,11 +496,17 @@ class VivadoBackend(FPGABackend):
         self.init_garnet(layer)
 
     @layer_optimizer(MultiheadAttention)
-    def init_transformer(self, layer):
+    def init_mha(self, layer):
         tiling_factor = layer.model.config.get_tiling_factor(layer)
         layer.set_attr('tiling_factor', tiling_factor)
         qkv_ram_style = layer.model.config.get_layer_config_value(layer, 'QKV_RAMStyle', 'Block')
         layer.set_attr('qkv_ram_style', qkv_ram_style)
         
 
+        layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
+
+    @layer_optimizer(LayerNorm)
+    def init_layernorm(self, layer):
+        tiling_factor = layer.model.config.get_tiling_factor(layer)
+        layer.set_attr('tiling_factor', tiling_factor)
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
