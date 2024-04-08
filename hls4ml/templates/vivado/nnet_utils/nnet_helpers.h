@@ -46,6 +46,251 @@ template <class T, size_t SIZE> void load_weights_from_txt(T *w, const char *fna
         }
     }
 }
+template <class T, size_t SIZE1, size_t SIZE2> void load_weights_from_txt(T w[SIZE1][SIZE2], const char *fname) {
+
+    std::string full_path = std::string(WEIGHTS_DIR) + "/" + std::string(fname);
+    std::ifstream infile(full_path.c_str(), std::ios::binary);
+
+    if (infile.fail()) {
+        std::cerr << "ERROR: file " << std::string(fname) << " does not exist" << std::endl;
+        exit(1);
+    }
+
+    std::string line;
+    if (std::getline(infile, line)) {
+        std::istringstream iss(line);
+        std::string token;
+
+        size_t i = 0;
+        size_t j = 0;
+        while (std::getline(iss, token, ',')) {
+            std::istringstream(token) >> w[j][i];
+            i++;
+            if (i == SIZE2) {
+                if (j != SIZE1) {
+                    i = 0;
+                }
+                j++;
+            }
+        }
+
+        if (SIZE1*SIZE2 != i*j) {
+            //std::cerr << "ERROR: Expected " << SIZE1*SIZE2 << " values";
+            std::cerr << " but read only " << i*j << " values" << std::endl;
+        }
+    }
+}
+
+template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3> void load_weights_from_txt(T w[SIZE1][SIZE2][SIZE3], const char *fname) {
+
+    std::string full_path = std::string(WEIGHTS_DIR) + "/" + std::string(fname);
+    std::ifstream infile(full_path.c_str(), std::ios::binary);
+
+    if (infile.fail()) {
+        std::cerr << "ERROR: file " << std::string(fname) << " does not exist" << std::endl;
+        exit(1);
+    }
+
+    std::string line;
+    if (std::getline(infile, line)) {
+        std::istringstream iss(line);
+        std::string token;
+
+        size_t i = 0;
+        size_t j = 0;
+        size_t k = 0;
+        while (std::getline(iss, token, ',')) {
+            std::istringstream(token) >> w[k][j][i];
+            i++;
+            if (i == SIZE3) {
+                if (j != SIZE2) {
+                    i = 0;
+                }
+                j++;
+                if (j == SIZE2) {
+                    if (k != SIZE1) {
+                        j = 0;
+                    }
+                    k++;
+                }
+            }
+        }
+
+        if (SIZE1*SIZE2*SIZE3 != i*j*k) {
+            //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3 << " values";
+            std::cerr << " but read only " << i*j*k << " values" << std::endl;
+        }
+    }
+}
+
+template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3, size_t SIZE4> void load_weights_from_txt(T w[SIZE1][SIZE2][SIZE3][SIZE4], const char *fname) {
+    
+        std::string full_path = std::string(WEIGHTS_DIR) + "/" + std::string(fname);
+        std::ifstream infile(full_path.c_str(), std::ios::binary);
+    
+        if (infile.fail()) {
+            std::cerr << "ERROR: file " << std::string(fname) << " does not exist" << std::endl;
+            exit(1);
+        }
+    
+        std::string line;
+        if (std::getline(infile, line)) {
+            std::istringstream iss(line);
+            std::string token;
+    
+            size_t i = 0;
+            size_t j = 0;
+            size_t k = 0;
+            size_t l = 0;
+            while (std::getline(iss, token, ',')) {
+                std::istringstream(token) >> w[l][k][j][i];
+                i++;
+                if (i == SIZE4) {
+                    if (j != SIZE3) {
+                        i = 0;
+                    }
+                    j++;
+                    if (j == SIZE3) {
+                        if (k != SIZE2) {
+                            j = 0;
+                        }
+                        k++;
+                        if (k == SIZE2) {
+                            if (l != SIZE1) {
+                                k = 0;
+                            }
+                            l++;
+                        }
+                    }
+                }
+            }
+    
+            if (SIZE1*SIZE2*SIZE3*SIZE4 != i*j*k*l) {
+                //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3*SIZE4 << " values";
+                std::cerr << " but read only " << i*j*k*l << " values" << std::endl;
+            }
+        }
+    }
+
+template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3, size_t SIZE4, size_t SIZE5> void load_weights_from_txt(T w[SIZE1][SIZE2][SIZE3][SIZE4][SIZE5], const char *fname) {
+        
+            std::string full_path = std::string(WEIGHTS_DIR) + "/" + std::string(fname);
+            std::ifstream infile(full_path.c_str(), std::ios::binary);
+        
+            if (infile.fail()) {
+                std::cerr << "ERROR: file " << std::string(fname) << " does not exist" << std::endl;
+                exit(1);
+            }
+        
+            std::string line;
+            if (std::getline(infile, line)) {
+                std::istringstream iss(line);
+                std::string token;
+        
+                size_t i = 0;
+                size_t j = 0;
+                size_t k = 0;
+                size_t l = 0;
+                size_t m = 0;
+                while (std::getline(iss, token, ',')) {
+                    std::istringstream(token) >> w[m][l][k][j][i];
+                    i++;
+                    if (i == SIZE5) {
+                        if (j != SIZE4) {
+                            i = 0;
+                        }
+                        j++;
+                        if (j == SIZE4) {
+                            if (k != SIZE3) {
+                                j = 0;
+                            }
+                            k++;
+                            if (k == SIZE3) {
+                                if (l != SIZE2) {
+                                    k = 0;
+                                }
+                                l++;
+                                if (l == SIZE2) {
+                                    if (m != SIZE1) {
+                                        l = 0;
+                                    }
+                                    m++;
+                                }
+                            }
+                        }
+                    }
+                }
+        
+                if (SIZE1*SIZE2*SIZE3*SIZE4*SIZE5 != i*j*k*l*m) {
+                    //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3*SIZE4*SIZE5 << " values";
+                    std::cerr << " but read only " << i*j*k*l*m << " values" << std::endl;
+                }
+            }
+        }
+
+template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3, size_t SIZE4, size_t SIZE5, size_t SIZE6> void load_weights_from_txt(T w[SIZE1][SIZE2][SIZE3][SIZE4][SIZE5][SIZE6], const char *fname) {
+            
+                std::string full_path = std::string(WEIGHTS_DIR) + "/" + std::string(fname);
+                std::ifstream infile(full_path.c_str(), std::ios::binary);
+            
+                if (infile.fail()) {
+                    std::cerr << "ERROR: file " << std::string(fname) << " does not exist" << std::endl;
+                    exit(1);
+                }
+            
+                std::string line;
+                if (std::getline(infile, line)) {
+                    std::istringstream iss(line);
+                    std::string token;
+            
+                    size_t i = 0;
+                    size_t j = 0;
+                    size_t k = 0;
+                    size_t l = 0;
+                    size_t m = 0;
+                    size_t n = 0;
+                    while (std::getline(iss, token, ',')) {
+                        std::istringstream(token) >> w[n][m][l][k][j][i];
+                        i++;
+                        if (i == SIZE6) {
+                            if (j != SIZE5) {
+                                i = 0;
+                            }
+                            j++;
+                            if (j == SIZE5) {
+                                if (k != SIZE4) {
+                                    j = 0;
+                                }
+                                k++;
+                                if (k == SIZE4) {
+                                    if (l != SIZE3) {
+                                        k = 0;
+                                    }
+                                    l++;
+                                    if (l == SIZE3) {
+                                        if (m != SIZE2) {
+                                            l = 0;
+                                        }
+                                        m++;
+                                        if (m == SIZE2) {
+                                            if (n != SIZE1) {
+                                                m = 0;
+                                            }
+                                            n++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+            
+                    if (SIZE1*SIZE2*SIZE3*SIZE4*SIZE5*SIZE6 != i*j*k*l*m*n) {
+                        //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3*SIZE4*SIZE5*SIZE6 << " values";
+                        std::cerr << " but read only " << i*j*k*l*m*n << " values" << std::endl;
+                    }
+                }
+            }
+        
 
 template <class T, size_t SIZE> void load_compressed_weights_from_txt(T *w, const char *fname) {
 

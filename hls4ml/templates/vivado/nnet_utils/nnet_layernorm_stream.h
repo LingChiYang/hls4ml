@@ -102,19 +102,19 @@ void LayerNormalize(
                     if (jj == 0 && ii == 0) {
                         data_pack = data.read();
                     }
-                    in_val[j][i][jj][ii] = data_pack[jj*tf_N+ii];
+                    in_val[j][i][jj][ii] = data_pack.data[jj*tf_N+ii];
                 }
             }
         }
     }
-    typename CONFIG_T::mean_t xsqrsum_1[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsum_1[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t prev_xsum_1[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsqrsum_2[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsum_2[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsum[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsqrsum[CONFIG_T::block_x];
+    typename CONFIG_T::mean_t xsqrsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t prev_xsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsqrsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsum[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsqrsum[CONFIG_T::tiling_factor[0]];
     #pragma HLS ARRAY_PARTITION variable=xsqrsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=prev_xsum_1 complete dim=1
@@ -190,7 +190,7 @@ void LayerNormalize(
                                 for (int ii=0; ii < tf_N; ++ii){
                                     #pragma HLS PIPELINE
                                     res_T res_pack;
-                                    res_pack[jj*tf_N+ii] = outval[j][i][jj][ii];
+                                    res_pack.data[jj*tf_N+ii] = outval[j][i][jj][ii];
                                     if (jj == tf_T-1 && ii == tf_N-1){
                                         res.write(res_pack);
                                     }
@@ -210,8 +210,8 @@ void layernormalize(
 )
 {
     static const unsigned dim = CONFIG_T::n_in/CONFIG_T::seq_len;
-    data_T in_val[CONFIG_T::seq_len/CONFIG_T::block_x][dim/CONFIG_T::block_y][CONFIG_T::block_x][CONFIG_T::block_y];
-    data_T outval[CONFIG_T::seq_len/CONFIG_T::block_x][dim/CONFIG_T::block_y][CONFIG_T::block_x][CONFIG_T::block_y];
+    data_T in_val[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][dim/CONFIG_T::block_y][CONFIG_T::tiling_factor[0]][CONFIG_T::block_y];
+    data_T outval[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][dim/CONFIG_T::block_y][CONFIG_T::tiling_factor[0]][CONFIG_T::block_y];
     #pragma HLS ARRAY_PARTITION variable=scale complete dim=2
     #pragma HLS ARRAY_PARTITION variable=bias complete dim=2
     #pragma HLS ARRAY_PARTITION variable=in_val complete dim=3
@@ -233,9 +233,9 @@ void layernormalize(
         initialized = true;
     }
     
-    store_input: for (int j=0; j <CONFIG_T::seq_len/CONFIG_T::block_x; ++j){
+    store_input: for (int j=0; j <CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; ++j){
         for (int i=0; i < dim/CONFIG_T::block_y; ++i){
-            for (int jj=0; jj < CONFIG_T::block_x; ++jj){
+            for (int jj=0; jj < CONFIG_T::tiling_factor[0]; ++jj){
                 for (int ii=0; ii < CONFIG_T::block_y; ++ii){
                     #pragma HLS PIPELINE
                     in_val[j][i][jj][ii] = data.read();
@@ -243,14 +243,14 @@ void layernormalize(
             }
         }
     }
-    typename CONFIG_T::mean_t xsqrsum_1[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsum_1[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t prev_xsum_1[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsqrsum_2[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsum_2[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsum[CONFIG_T::block_x];
-    typename CONFIG_T::mean_t xsqrsum[CONFIG_T::block_x];
+    typename CONFIG_T::mean_t xsqrsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t prev_xsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsqrsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsum[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xsqrsum[CONFIG_T::tiling_factor[0]];
     #pragma HLS ARRAY_PARTITION variable=xsqrsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=prev_xsum_1 complete dim=1
@@ -260,10 +260,10 @@ void layernormalize(
     #pragma HLS ARRAY_PARTITION variable=xsqrsum complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsum complete dim=1
     bool mean_init = false;
-    layerNorm:  for (int j=0; j <= CONFIG_T::seq_len/CONFIG_T::block_x; ++j){
+    layerNorm:  for (int j=0; j <= CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; ++j){
                     for (int i=0; i < dim/CONFIG_T::block_y; ++i){
                         #pragma HLS PIPELINE
-                        for (int jj=0; jj < CONFIG_T::block_x; ++jj){
+                        for (int jj=0; jj < CONFIG_T::tiling_factor[0]; ++jj){
                             #pragma HLS UNROLL
                             if (i == 0){
                                 if (mean_init == false){
@@ -276,7 +276,7 @@ void layernormalize(
                             }
                             for (int ii=0; ii < CONFIG_T::block_y; ++ii){
                                 #pragma HLS UNROLL
-                                if (j < CONFIG_T::seq_len/CONFIG_T::block_x){
+                                if (j < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]){
                                     typename CONFIG_T::mean_t tmp = in_val[j][i][jj][ii];
                                     typename CONFIG_T::mean_t tmp2 = tmp*tmp;
                                     if (mean_init == false){
@@ -323,9 +323,9 @@ void layernormalize(
                     }
                 }
 
-    store_output:   for (int j=0; j <CONFIG_T::seq_len/CONFIG_T::block_x; ++j){
+    store_output:   for (int j=0; j <CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; ++j){
                         for (int i=0; i < dim/CONFIG_T::block_y; ++i){
-                            for (int jj=0; jj < CONFIG_T::block_x; ++jj){
+                            for (int jj=0; jj < CONFIG_T::tiling_factor[0]; ++jj){
                                 for (int ii=0; ii < CONFIG_T::block_y; ++ii){
                                     #pragma HLS PIPELINE
                                     res.write(outval[j][i][jj][ii]);

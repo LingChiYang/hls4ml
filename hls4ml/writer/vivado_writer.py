@@ -47,11 +47,29 @@ class VivadoWriter(Writer):
         # fill c++ array.
         # not including internal brackets for multidimensional case
         sep = ''
+        i=0
         for x in var:
-            h_file.write(sep + x)
+            h_file.write(sep)
+            #determine how many brackets to include
+            t=1
+            tmp=var.shape[-1]
+            while len(var.shape) > 1 and t < len(var.shape):
+                if i%tmp == 0:
+                    h_file.write("{")
+                t=t+1
+                tmp=tmp*var.shape[-t]
+            h_file.write(x)
             if write_txt_file:
                 txt_file.write(sep + x)
+            t=1
+            tmp=var.shape[-1]
+            while len(var.shape) > 1 and t < len(var.shape):
+                if i%tmp == tmp-1:
+                    h_file.write("}\n")
+                t=t+1
+                tmp=tmp*var.shape[-t]
             sep = ", "
+            i=i+1
         h_file.write("};\n")
         if write_txt_file:
             h_file.write("#endif\n")
@@ -149,9 +167,20 @@ class VivadoWriter(Writer):
                                 w.type.name, w.data_length, w.name, w.name
                             )
                         else:
-                            newline += indent + '    nnet::load_weights_from_txt<{}, {}>({}, "{}.txt");\n'.format(
-                                w.type.name, w.data_length, w.name, w.name
-                            )
+                            if len(w.shape) == 1:
+                                newline += indent + '    nnet::load_weights_from_txt<{}, {}>({}, "{}.txt");\n'.format(w.type.name, w.data_length, w.name, w.name)
+                            elif len(w.shape) == 2:
+                                newline += indent + '    nnet::load_weights_from_txt<{}, {}, {}>({}, "{}.txt");\n'.format(w.type.name, w.shape[0], w.shape[1], w.name, w.name)
+                            elif len(w.shape) == 3:
+                                newline += indent + '    nnet::load_weights_from_txt<{}, {}, {}, {}>({}, "{}.txt");\n'.format(w.type.name, w.shape[0], w.shape[1], w.shape[2], w.name, w.name)
+                            elif len(w.shape) == 4:
+                                newline += indent + '    nnet::load_weights_from_txt<{}, {}, {}, {}, {}>({}, "{}.txt");\n'.format(w.type.name, w.shape[0], w.shape[1], w.shape[2], w.shape[3], w.name, w.name)
+                            elif len(w.shape) == 5:
+                                newline += indent + '    nnet::load_weights_from_txt<{}, {}, {}, {}, {}, {}>({}, "{}.txt");\n'.format(w.type.name, w.shape[0], w.shape[1], w.shape[2], w.shape[3], w.shape[4], w.name, w.name)
+                            elif len(w.shape) == 6:
+                                newline += indent + '    nnet::load_weights_from_txt<{}, {}, {}, {}, {}, {}, {}>({}, "{}.txt");\n'.format(w.type.name, w.shape[0], w.shape[1], w.shape[2], w.shape[3], w.shape[4], w.shape[5], w.name, w.name)
+                            else:
+                                raise Exception("Unsupported weight shape")
 
             # Add input/output type
             elif '// hls-fpga-machine-learning insert IO' in line:

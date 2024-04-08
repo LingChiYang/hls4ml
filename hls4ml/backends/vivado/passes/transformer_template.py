@@ -3,6 +3,7 @@ from hls4ml.backends.template import FunctionCallTemplate, LayerConfigTemplate
 from hls4ml.model.layers import (
     MultiheadAttention,
     LayerNorm,
+    FeedForwardNetwork
 )
 
 mha_template = """struct config{index} : nnet::mha_config {{
@@ -24,14 +25,13 @@ mha_template = """struct config{index} : nnet::mha_config {{
     
 }};\n"""
 
-transformer_ffn_template = """struct ffn_config{index} : nnet::ffn_config {{
+ffn_template = """struct ffn_config{index} : nnet::ffn_config {{
     static const unsigned seq_len = {seq_len};
     static const unsigned feature_dim = {feature_dim};
     static const unsigned hidden_dim = {hidden_dim};
     static const unsigned in_ram_style = nnet::{in_ram_style};
     static const unsigned out_ram_style = nnet::{out_ram_style};
-    static const unsigned tiling_factor[{rank}] = {tiling_factor};
-    typedef {act_t} ACT_CONFIG_T;
+    static const unsigned tiling_factor[3] = {tiling_factor};
 }};\n"""
 
 layernorm_template = """struct config{index} : nnet::layernorm_config {{
@@ -40,6 +40,7 @@ layernorm_template = """struct config{index} : nnet::layernorm_config {{
     static const unsigned table_size = {table_size};
     static constexpr double table_range = {table_range};
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
+    typedef {mean_t} mean_t;   
     typedef {bias_t.name} bias_t;
     typedef {scale_t.name} scale_t;
     typedef {table_t.name} table_t;
@@ -52,6 +53,8 @@ mha_include_list = ["nnet_utils/nnet_multiheadattention_stream.h"]
 layernorm_function_template = 'nnet::LayerNormalize<{input_t}, {output_t}, {config}>({input}, {output}, {s}, {b});'
 layernorm_include_list = ["nnet_utils/nnet_layernorm_stream.h"]
 
+ffn_function_template = 'nnet::FeedForwardNetwork<{input_t}, {output_t}, {config}>({input}, {output}, {iprj_w}, {iprj_b}, {oprj_w}, {oprj_b});'
+ffn_include_list = ["nnet_utils/nnet_feedforwardnetwork_stream.h"]
 
 class MHAConfigTemplate(LayerConfigTemplate):
     def __init__(self):
@@ -102,4 +105,28 @@ class LayerNormFunctionTemplate(FunctionCallTemplate):
         params['s'] = node.get_weights('scale').name
         params['b'] = node.get_weights('bias').name
 
+        return self.templates.format(**params)
+
+class FFNConfigTemplate(LayerConfigTemplate):
+    def __init__(self):
+        super().__init__((FeedForwardNetwork))
+        self.ffn_template  = ffn_template 
+
+    def format(self, node):
+        params = self._default_config_params(node)
+        params['tiling_factor'] = '{'+','.join([str(x) for x in params['tiling_factor']])+'}'
+        ffn_config = self.ffn_template.format(**params)
+        return ffn_config
+
+class FFNFunctionTemplate(FunctionCallTemplate):
+    def __init__(self):
+        super().__init__((FeedForwardNetwork), include_header=ffn_include_list)
+        self.templates = ffn_function_template
+
+    def format(self, node):
+        params = self._default_function_params(node)
+        params['iprj_w'] = node.get_weights('in_proj_weight').name
+        params['iprj_b'] = node.get_weights('in_proj_bias').name
+        params['oprj_w'] = node.get_weights('out_proj_weight').name
+        params['oprj_b'] = node.get_weights('out_proj_bias').name
         return self.templates.format(**params)

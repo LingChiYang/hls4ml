@@ -44,6 +44,26 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
     output_shapes = input_shapes   
     return layer, output_shapes
 
+@pytorch_handler('FeedForwardNetwork')
+def parse_ffn_layer(operation, layer_name, input_names, input_shapes, node, class_object1, class_object2, data_reader, config):
+    assert 'FeedForwardNetwork' in operation
+    layer = {}
+
+    layer['name'] = layer_name
+    layer['inputs'] = input_names.copy()
+    layer['class_name'] = 'FeedForwardNetwork'
+    layer['feature_dim'] = input_shapes[0][-1]
+    layer['hidden_dim'] = class_object1.out_features
+    assert class_object1.out_features == class_object2.in_features
+    layer['seq_len'] = input_shapes[0][-2]
+    layer['in_proj_weight_data'] = class_object1.weight.data.numpy()
+    layer['in_proj_bias_data'] = class_object1.bias.data.numpy()
+    layer['out_proj_weight_data'] = class_object2.weight.data.numpy()
+    layer['out_proj_bias_data'] = class_object2.bias.data.numpy()
+
+    output_shapes = input_shapes   
+    return layer, output_shapes
+
 @pytorch_handler('TransformerEncoderLayer')
 def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
     assert 'TransformerEncoderLayer' in operation
@@ -72,15 +92,13 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
         sublayer, _= layer_handlers['LayerNorm']('LayerNorm', layer_name+'_norm2', [layer_name+'_add1'], input_shapes, node, subclass_object, data_reader, config)
         layer_list.append(sublayer)
 
-        subclass_object = class_object.__dict__['_modules']['linear1']
-        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear1', [layer_name+'_norm2'], input_shapes, node, subclass_object, data_reader, config)
+        subclass_object1 = class_object.__dict__['_modules']['linear1']
+        subclass_object2 = class_object.__dict__['_modules']['linear2']
+        sublayer, _= layer_handlers['FeedForwardNetwork']('FeedForwardNetwork', layer_name+'_ffn', [layer_name+'_norm2'], input_shapes, node, subclass_object1, subclass_object2, data_reader, config)
+        sublayer["activation"] = class_object.activation
         layer_list.append(sublayer)
 
-        subclass_object = class_object.__dict__['_modules']['linear2']
-        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear2', [layer_name+'_linear1'], input_shapes, node, subclass_object, data_reader, config)
-        layer_list.append(sublayer)
-
-        sublayer, _= layer_handlers['add']('add', layer_name+'_add2', [layer_name+'_linear2', layer_name+'_norm2'], input_shapes, node, subclass_object, data_reader, config)
+        sublayer, _= layer_handlers['add']('add', layer_name+'_add2', [layer_name+'_ffn', layer_name+'_norm2'], input_shapes, node, subclass_object, data_reader, config)
         layer_list.append(sublayer)
     else:
         subclass_object = class_object.__dict__['_modules']['self_attn']
@@ -94,12 +112,10 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
         sublayer, _= layer_handlers['LayerNorm']('LayerNorm', layer_name+'_norm1', [layer_name+'_add1'], input_shapes, node, subclass_object, data_reader, config)
         layer_list.append(sublayer)
 
-        subclass_object = class_object.__dict__['_modules']['linear1']
-        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear1', [layer_name+'_norm1'], input_shapes, node, subclass_object, data_reader, config)
-        layer_list.append(sublayer)
-
-        subclass_object = class_object.__dict__['_modules']['linear2']
-        sublayer, _= layer_handlers['Linear']('Linear', layer_name+'_linear2', [layer_name+'_linear1'], input_shapes, node, subclass_object, data_reader, config)
+        subclass_object1 = class_object.__dict__['_modules']['linear1']
+        subclass_object2 = class_object.__dict__['_modules']['linear2']
+        sublayer, _= layer_handlers['FeedForwardNetwork']('FeedForwardNetwork', layer_name+'_ffn', [layer_name+'_norm2'], input_shapes, node, subclass_object1, subclass_object2, data_reader, config)
+        sublayer["activation"] = class_object.activation
         layer_list.append(sublayer)
 
         sublayer, _= layer_handlers['add']('add', layer_name+'_add2', [layer_name+'_linear2', layer_name+'_norm1'], input_shapes, node, subclass_object, data_reader, config)
@@ -109,15 +125,6 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
         sublayer, _= layer_handlers['LayerNorm']('LayerNorm', layer_name+'_norm2', [layer_name+'_add2'], input_shapes, node, subclass_object, data_reader, config)
         layer_list.append(sublayer)
         
-    #for key, subclass_object in class_object.__dict__['_modules'].items():
-    #    class_name = subclass_object.__class__.__name__
-    #    if class_name == 'Dropout':
-    #        continue
-    #    sublayer_name = layer_name + '_' + key
-    #    sublayer, _= layer_handlers[class_name](class_name, sublayer_name, prev_layer_name, input_shapes, node, subclass_object, data_reader, config)
-    #    layer_list.append(sublayer)
-    #    prev_layer_name = [sublayer_name]
-
     layer['output_shape'] = input_shapes
     layer['layer_list'] = layer_list
     layer['input_layers'] = []

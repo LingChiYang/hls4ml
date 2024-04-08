@@ -1287,6 +1287,20 @@ class GarNetStack(GarNet):
 
         self._output_features = self.attributes['n_out_features'][-1]
 
+
+class FeedForwardNetwork(Layer):
+    _expected_attributes = [
+    ]
+    def initialize(self):
+        self.add_weights_variable(name='in_proj_weight')
+        self.add_weights_variable(name='in_proj_bias')
+        self.add_weights_variable(name='out_proj_weight')
+        self.add_weights_variable(name='out_proj_bias')
+        dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
+        shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
+        self.add_output_variable(shape, dims)
+
+
 class LayerNorm(Layer):
     _expected_attributes = [
     ]
@@ -1421,6 +1435,7 @@ layer_map = {
     #'TransformerEncoder': TransformerEncoder,
     'MultiheadAttention': MultiheadAttention,
     'LayerNorm': LayerNorm,
+    'FeedForwardNetwork': FeedForwardNetwork,
 }
 
 

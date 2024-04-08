@@ -384,11 +384,6 @@ class StreamVariableConverter:
         if depth == 0:
             depth = np.prod(tensor_var.shape) // tensor_var.shape[-1]
         tensor_var.pragma = ('stream', depth)
-        #
-        print('sssssssssssssss')
-        print(tensor_var)
-        print(tensor_var.shape)
-        #
         tensor_var.type = self.type_converter.convert(
             PackedType(tensor_var.type.name, tensor_var.type.precision, tensor_var.shape[-1], n_pack)
         )
@@ -447,7 +442,21 @@ class QuartusInplaceStreamVariableConverter(InplaceStreamVariableConverter):
 
 class StaticWeightVariableDefinition(VariableDefinition):
     def definition_cpp(self, name_suffix='', as_reference=False):
-        return f'{self.type.name} {self.name}[{self.data_length}]'
+        if len(self.shape) == 1:
+            var = '{type} {name}[{size}]'.format(type=self.type.name, name=self.name, size=self.data_length)
+        elif len(self.shape) == 2:
+            var = '{type} {name}[{size0}][{size1}]'.format(type=self.type.name, name=self.name, size0=self.shape[0], size1=self.shape[1])
+        elif len(self.shape) == 3:
+            var = '{type} {name}[{size0}][{size1}][{size2}]'.format(type=self.type.name, name=self.name, size0=self.shape[0], size1=self.shape[1], size2=self.shape[2])
+        elif len(self.shape) == 4:
+            var = '{type} {name}[{size0}][{size1}][{size2}][{size3}]'.format(type=self.type.name, name=self.name, size0=self.shape[0], size1=self.shape[1], size2=self.shape[2], size3=self.shape[3])
+        elif len(self.shape) == 5:
+            var = '{type} {name}[{size0}][{size1}][{size2}][{size3}][{size4}]'.format(type=self.type.name, name=self.name, size0=self.shape[0], size1=self.shape[1], size2=self.shape[2], size3=self.shape[3], size4=self.shape[4])
+        elif len(self.shape) == 6:
+            var = '{type} {name}[{size0}][{size1}][{size2}][{size3}][{size4}][{size5}]'.format(type=self.type.name, name=self.name, size0=self.shape[0], size1=self.shape[1], size2=self.shape[2], size3=self.shape[3], size4=self.shape[4], size5=self.shape[5])
+        else:
+            raise NotImplementedError('Unsupported shape length: {}'.format(len(self.shape)))
+        return var
 
 
 class StaticWeightVariableConverter:

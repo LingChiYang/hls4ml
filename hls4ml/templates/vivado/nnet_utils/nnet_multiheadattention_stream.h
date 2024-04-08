@@ -76,14 +76,14 @@ typename CONFIG_T::inv_table_t lookup_inv(
 
 template<typename CONFIG_T>
 void Init_RowMaxSum(
-    typename CONFIG_T::softmax_config1::accum_t row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t new_row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t prev_row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t row_max[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t new_row_max[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t prev_row_max[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]])
+    typename CONFIG_T::softmax_config1::accum_t row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t new_row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t prev_row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t row_max[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t new_row_max[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t prev_row_max[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]])
 {
-    for (int i = 0; i < CONFIG_T::num_heads; i++) {
+    for (int i = 0; i < CONFIG_T::n_head; i++) {
         #pragma HLS UNROLL
         for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
             #pragma HLS UNROLL
@@ -97,9 +97,9 @@ void Init_RowMaxSum(
 //initialize QK
 template<typename CONFIG_T>
 void Init_Attention(
-    typename CONFIG_T::softmax_config1::accum_t QK[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]])
+    typename CONFIG_T::softmax_config1::accum_t QK[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]])
 {
-    for (int i = 0; i < CONFIG_T::num_heads; i++) {
+    for (int i = 0; i < CONFIG_T::n_head; i++) {
         #pragma HLS UNROLL
         for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
             #pragma HLS UNROLL
@@ -113,12 +113,12 @@ void Init_Attention(
 //compute current tile row_max and row_sum
 template<typename CONFIG_T>
 void Compute_CurrentTile_RowMaxSum(
-    typename CONFIG_T::softmax_config1::accum_t QK[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t row_max[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::exp_table_t P[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]])
+    typename CONFIG_T::softmax_config1::accum_t QK[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t row_max[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::exp_table_t P[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]])
 {
-    for (int i = 0; i < CONFIG_T::num_heads; i++) {
+    for (int i = 0; i < CONFIG_T::n_head; i++) {
         #pragma HLS UNROLL
         for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
             #pragma HLS UNROLL
@@ -144,16 +144,16 @@ void Compute_CurrentTile_RowMaxSum(
 //update row_sum and row_max
 template<typename CONFIG_T>
 void Update_RowMaxSum(
-    typename CONFIG_T::softmax_config1::accum_t new_row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t prev_row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t new_row_max[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]],
-    typename CONFIG_T::softmax_config1::accum_t prev_row_max[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]])
+    typename CONFIG_T::softmax_config1::accum_t new_row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t prev_row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t new_row_max[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]],
+    typename CONFIG_T::softmax_config1::accum_t prev_row_max[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]])
 {
     #pragma HLS ARRAY_PARTITION variable=new_row_sum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=prev_row_sum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=new_row_max complete dim=0
     #pragma HLS ARRAY_PARTITION variable=prev_row_max complete dim=0
-    for (int i = 0; i < CONFIG_T::num_heads; i++) {
+    for (int i = 0; i < CONFIG_T::n_head; i++) {
         #pragma HLS UNROLL
         for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
             #pragma HLS UNROLL
@@ -168,18 +168,18 @@ template<class data_T, class res_T, typename CONFIG_T>
 void MultiHeadAttention(
     hls::stream<data_T>    &data_qkv,
     hls::stream<res_T>     &res,
-    typename CONFIG_T::weight_t  in_proj_weight[3][CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::bias_t    in_proj_bias[3][CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  out_proj_weight[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // num_heads,head_size_v,dim
-    typename CONFIG_T::bias_t    out_proj_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]])
+    typename CONFIG_T::in_proj_weight_t  in_proj_weight[3][CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::in_proj_bias_t    in_proj_bias[3][CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::out_proj_weight_t out_proj_weight[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // n_head,head_size_v,dim
+    typename CONFIG_T::out_proj_bias_t   out_proj_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]])
 {
 
     //data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     data_T data_qkv_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    data_T K[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T V[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T Q[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T O[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T K[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T V[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T Q[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T O[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T M[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     //#pragma HLS STREAM off variable=data_q_buf depth=2 
     //#pragma HLS STREAM off variable=data_vk_buf depth=2 
@@ -208,9 +208,9 @@ void MultiHeadAttention(
     #pragma HLS ARRAY_PARTITION variable=M complete dim=3
     #pragma HLS ARRAY_PARTITION variable=M complete dim=4
     #pragma HLS DATAFLOW
-    data_T QK0[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
-    data_T QK1[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::exp_table_t P[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
+    data_T QK0[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
+    data_T QK1[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::exp_table_t P[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
     #pragma HLS ARRAY_PARTITION variable=QK0 complete dim=0
     #pragma HLS ARRAY_PARTITION variable=QK1 complete dim=0
     #pragma HLS ARRAY_PARTITION variable=P complete dim=0
@@ -239,14 +239,17 @@ void MultiHeadAttention(
     #pragma HLS ARRAY_PARTITION variable=query_bias complete dim=3
     #pragma HLS ARRAY_PARTITION variable=attention_output_bias complete dim=2
 
-
+    data_T data_pack;
     store_data: 
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
         for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1
-                    data_qkv_buf[i][j][ii][jj] = data_qkv.read();
+                    if (jj==0 && ii==0){
+                        data_pack = data_qkv.read();
+                    }
+                    data_qkv_buf[i][j][ii][jj] = data_qkv.data[ii*CONFIG_T::tiling_factor[1] + jj];
                     //data_vk_buf[i][j][ii][jj] = data_vk[j*CONFIG_T::tiling_factor[1] + jj].read();
                     //data_q_buf[i][j][ii][jj].write(data_q[j*CONFIG_T::tiling_factor[1] + jj].read());
                     //data_vk_buf[i][j][ii][jj].write(data_vk[j*CONFIG_T::tiling_factor[1] + jj].read());
@@ -255,12 +258,12 @@ void MultiHeadAttention(
         }
     }
 
-    typename CONFIG_T::softmax_config1::accum_t rowsum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t new_rowsum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t new_rowmax[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t prev_rowmax[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t prev_rowsum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t rowmax[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t rowsum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t new_rowsum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t new_rowmax[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t prev_rowmax[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t prev_rowsum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t rowmax[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
     
     #pragma HLS ARRAY_PARTITION variable=rowsum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=new_rowsum complete dim=0
@@ -268,21 +271,21 @@ void MultiHeadAttention(
     #pragma HLS ARRAY_PARTITION variable=prev_rowmax complete dim=0
     #pragma HLS ARRAY_PARTITION variable=prev_rowsum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=rowmax complete dim=0
-    const data_T dk = 1.0/sqrt(CONFIG_T::head_dim_key);
+    const data_T dk = 1.0/sqrt(CONFIG_T::head_dim);
     int index;
     int data_round; 
-    typename CONFIG_T::accum_t tmp_k[CONFIG_T::num_heads][CONFIG_T::tiling_factor[2]];
-    typename CONFIG_T::accum_t tmp_v[CONFIG_T::num_heads][CONFIG_T::tiling_factor[2]];
-    typename CONFIG_T::accum_t tmp_q[CONFIG_T::num_heads][CONFIG_T::tiling_factor[2]];
+    typename CONFIG_T::accum_t tmp_k[CONFIG_T::n_head][CONFIG_T::tiling_factor[2]];
+    typename CONFIG_T::accum_t tmp_v[CONFIG_T::n_head][CONFIG_T::tiling_factor[2]];
+    typename CONFIG_T::accum_t tmp_q[CONFIG_T::n_head][CONFIG_T::tiling_factor[2]];
     #pragma HLS ARRAY_PARTITION variable=tmp_k complete dim=0
     #pragma HLS ARRAY_PARTITION variable=tmp_v complete dim=0
     #pragma HLS ARRAY_PARTITION variable=tmp_q complete dim=0
     compute_KVQ:  
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int k = 0; k < CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]; k++) {
+        for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
             for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
-                for (int h = 0; h < CONFIG_T::num_heads; h++) {//48dsp
+                for (int h = 0; h < CONFIG_T::n_head; h++) {//48dsp
                     #pragma HLS UNROLL
                     for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                         #pragma HLS UNROLL
@@ -310,9 +313,9 @@ void MultiHeadAttention(
     }
     
 
-    typename CONFIG_T::softmax_config1::exp_table_t prev_exp_tmp[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::exp_table_t exp_tmp[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::inv_table_t inv_row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::exp_table_t prev_exp_tmp[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::exp_table_t exp_tmp[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::inv_table_t inv_row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
     #pragma HLS ARRAY_PARTITION variable=inv_row_sum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=prev_exp_tmp complete dim=0
     #pragma HLS ARRAY_PARTITION variable=exp_tmp complete dim=0
@@ -325,7 +328,7 @@ void MultiHeadAttention(
     bool init_QK0 = false; 
     compute_att_pipeline:   
     for (int c=0; c < total_cycle; ++c){
-        for (int k=0; k<CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]; k++) {
+        for (int k=0; k<CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
             #pragma HLS PIPELINE II = 1
             if (k==0) {
                 if (init_QK0){
@@ -335,7 +338,7 @@ void MultiHeadAttention(
                     if (c < total_cycle-1) { Init_Attention<CONFIG_T>(QK1); }
                     if (c > 0) { Compute_CurrentTile_RowMaxSum<CONFIG_T>(QK0, rowmax, rowsum, P); }
                 }
-                for (int i = 0; i < CONFIG_T::num_heads; i++) {//8dsp
+                for (int i = 0; i < CONFIG_T::n_head; i++) {//8dsp
                     #pragma HLS UNROLL
                     for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                         #pragma HLS UNROLL
@@ -352,7 +355,7 @@ void MultiHeadAttention(
                     }
                 }
             }
-            for (int h = 0; h < CONFIG_T::num_heads; h++) { //16dsp
+            for (int h = 0; h < CONFIG_T::n_head; h++) { //16dsp
                 #pragma HLS UNROLL
                 for (int mm = 0; mm < CONFIG_T::tiling_factor[0]; mm++) {
                     #pragma HLS UNROLL
@@ -371,7 +374,7 @@ void MultiHeadAttention(
                     }
                 }
             }
-            for (int h = 0; h < CONFIG_T::num_heads; h++) {//48 dsp
+            for (int h = 0; h < CONFIG_T::n_head; h++) {//48 dsp
                 #pragma HLS UNROLL
                 for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                     #pragma HLS UNROLL
@@ -402,7 +405,7 @@ void MultiHeadAttention(
                 }
             }
             Update_RowMaxSum<CONFIG_T>(new_rowsum, prev_rowsum, new_rowmax, prev_rowmax);
-            if (k==(CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[1]-1)) {
+            if (k==(CONFIG_T::head_dim/CONFIG_T::tiling_factor[1]-1)) {
                 if (init_QK0){
                     init_QK0 = false;
                 } else {
@@ -428,7 +431,7 @@ void MultiHeadAttention(
     typename CONFIG_T::accum_t tmp_m;                        
     compute_output: 
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int k = 0; k < CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]; k++) {
+        for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
             for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
                 for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
@@ -442,7 +445,7 @@ void MultiHeadAttention(
                         }
                         for (int kk = 0; kk < CONFIG_T::tiling_factor[2]; kk++) {
                             #pragma HLS UNROLL
-                            for (int h = 0; h < CONFIG_T::num_heads; h++) {//16dsp
+                            for (int h = 0; h < CONFIG_T::n_head; h++) {//16dsp
                                 #pragma HLS UNROLL
                                 tmp_m += O[h][i][k][ii][kk] * out_proj_weight[h][k][j][kk][jj];
                             }
@@ -473,22 +476,22 @@ void multiheadattention(
     hls::stream<data_T>    &data_q,
     hls::stream<data_T>    &data_vk,
     hls::stream<res_T>     &res,
-    typename CONFIG_T::weight_t  attention_output_weight[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // num_heads,head_size_v,dim
+    typename CONFIG_T::weight_t  attention_output_weight[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // n_head,head_size_v,dim
     typename CONFIG_T::bias_t    attention_output_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]],
-    typename CONFIG_T::weight_t  key_weight[CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],  // n_head,dim,head_dim
-    typename CONFIG_T::bias_t    key_bias[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  query_weight[CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]], //same shape as key
-    typename CONFIG_T::bias_t    query_bias[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  value_weight[CONFIG_T::num_heads][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::bias_t    value_bias[CONFIG_T::num_heads][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]])
+    typename CONFIG_T::weight_t  key_weight[CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],  // n_head,dim,head_dim
+    typename CONFIG_T::bias_t    key_bias[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::weight_t  query_weight[CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]], //same shape as key
+    typename CONFIG_T::bias_t    query_bias[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::weight_t  value_weight[CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::bias_t    value_bias[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]])
 {
 
     data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     data_T data_vk_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    data_T K[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T V[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T Q[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T O[CONFIG_T::num_heads][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T K[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T V[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T Q[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
+    data_T O[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T M[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
 
     #pragma HLS ARRAY_PARTITION variable=data_q_buf complete dim=3
@@ -510,9 +513,9 @@ void multiheadattention(
     #pragma HLS ARRAY_PARTITION variable=M complete dim=3
     #pragma HLS ARRAY_PARTITION variable=M complete dim=4
     #pragma HLS DATAFLOW
-    data_T QK0[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
-    data_T QK1[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::exp_table_t P[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
+    data_T QK0[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
+    data_T QK1[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::exp_table_t P[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[0]];
     #pragma HLS ARRAY_PARTITION variable=QK0 complete dim=0
     #pragma HLS ARRAY_PARTITION variable=QK1 complete dim=0
     #pragma HLS ARRAY_PARTITION variable=P complete dim=0
@@ -555,12 +558,12 @@ void multiheadattention(
         }
     }
 
-    typename CONFIG_T::softmax_config1::accum_t rowsum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t new_rowsum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t new_rowmax[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t prev_rowmax[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t prev_rowsum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::accum_t rowmax[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t rowsum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t new_rowsum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t new_rowmax[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t prev_rowmax[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t prev_rowsum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::accum_t rowmax[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
     
     #pragma HLS ARRAY_PARTITION variable=rowsum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=new_rowsum complete dim=0
@@ -568,21 +571,21 @@ void multiheadattention(
     #pragma HLS ARRAY_PARTITION variable=prev_rowmax complete dim=0
     #pragma HLS ARRAY_PARTITION variable=prev_rowsum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=rowmax complete dim=0
-    const data_T dk = 1.0/sqrt(CONFIG_T::head_dim_key);
+    const data_T dk = 1.0/sqrt(CONFIG_T::head_dim);
     int index;
     int data_round; 
-    typename CONFIG_T::accum_t tmp_k[CONFIG_T::num_heads][CONFIG_T::tiling_factor[2]];
-    typename CONFIG_T::accum_t tmp_v[CONFIG_T::num_heads][CONFIG_T::tiling_factor[2]];
-    typename CONFIG_T::accum_t tmp_q[CONFIG_T::num_heads][CONFIG_T::tiling_factor[2]];
+    typename CONFIG_T::accum_t tmp_k[CONFIG_T::n_head][CONFIG_T::tiling_factor[2]];
+    typename CONFIG_T::accum_t tmp_v[CONFIG_T::n_head][CONFIG_T::tiling_factor[2]];
+    typename CONFIG_T::accum_t tmp_q[CONFIG_T::n_head][CONFIG_T::tiling_factor[2]];
     #pragma HLS ARRAY_PARTITION variable=tmp_k complete dim=0
     #pragma HLS ARRAY_PARTITION variable=tmp_v complete dim=0
     #pragma HLS ARRAY_PARTITION variable=tmp_q complete dim=0
     compute_KVQ:  
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int k = 0; k < CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]; k++) {
+        for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
             for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
-                for (int h = 0; h < CONFIG_T::num_heads; h++) {//48dsp
+                for (int h = 0; h < CONFIG_T::n_head; h++) {//48dsp
                     #pragma HLS UNROLL
                     for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                         #pragma HLS UNROLL
@@ -610,9 +613,9 @@ void multiheadattention(
     }
     
 
-    typename CONFIG_T::softmax_config1::exp_table_t prev_exp_tmp[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::exp_table_t exp_tmp[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::softmax_config1::inv_table_t inv_row_sum[CONFIG_T::num_heads][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::exp_table_t prev_exp_tmp[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::exp_table_t exp_tmp[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::softmax_config1::inv_table_t inv_row_sum[CONFIG_T::n_head][CONFIG_T::tiling_factor[0]];
     #pragma HLS ARRAY_PARTITION variable=inv_row_sum complete dim=0
     #pragma HLS ARRAY_PARTITION variable=prev_exp_tmp complete dim=0
     #pragma HLS ARRAY_PARTITION variable=exp_tmp complete dim=0
@@ -625,7 +628,7 @@ void multiheadattention(
     bool init_QK0 = false; 
     compute_att_pipeline:   
     for (int c=0; c < total_cycle; ++c){
-        for (int k=0; k<CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]; k++) {
+        for (int k=0; k<CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
             #pragma HLS PIPELINE II = 1
             if (k==0) {
                 if (init_QK0){
@@ -635,7 +638,7 @@ void multiheadattention(
                     if (c < total_cycle-1) { Init_Attention<CONFIG_T>(QK1); }
                     if (c > 0) { Compute_CurrentTile_RowMaxSum<CONFIG_T>(QK0, rowmax, rowsum, P); }
                 }
-                for (int i = 0; i < CONFIG_T::num_heads; i++) {//8dsp
+                for (int i = 0; i < CONFIG_T::n_head; i++) {//8dsp
                     #pragma HLS UNROLL
                     for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                         #pragma HLS UNROLL
@@ -652,7 +655,7 @@ void multiheadattention(
                     }
                 }
             }
-            for (int h = 0; h < CONFIG_T::num_heads; h++) { //16dsp
+            for (int h = 0; h < CONFIG_T::n_head; h++) { //16dsp
                 #pragma HLS UNROLL
                 for (int mm = 0; mm < CONFIG_T::tiling_factor[0]; mm++) {
                     #pragma HLS UNROLL
@@ -671,7 +674,7 @@ void multiheadattention(
                     }
                 }
             }
-            for (int h = 0; h < CONFIG_T::num_heads; h++) {//48 dsp
+            for (int h = 0; h < CONFIG_T::n_head; h++) {//48 dsp
                 #pragma HLS UNROLL
                 for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                     #pragma HLS UNROLL
@@ -702,7 +705,7 @@ void multiheadattention(
                 }
             }
             Update_RowMaxSum<CONFIG_T>(new_rowsum, prev_rowsum, new_rowmax, prev_rowmax);
-            if (k==(CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[1]-1)) {
+            if (k==(CONFIG_T::head_dim/CONFIG_T::tiling_factor[1]-1)) {
                 if (init_QK0){
                     init_QK0 = false;
                 } else {
@@ -728,7 +731,7 @@ void multiheadattention(
     typename CONFIG_T::accum_t tmp_m;                        
     compute_output: 
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int k = 0; k < CONFIG_T::head_dim_key/CONFIG_T::tiling_factor[2]; k++) {
+        for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
             for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
                 for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
@@ -742,7 +745,7 @@ void multiheadattention(
                         }
                         for (int kk = 0; kk < CONFIG_T::tiling_factor[2]; kk++) {
                             #pragma HLS UNROLL
-                            for (int h = 0; h < CONFIG_T::num_heads; h++) {//16dsp
+                            for (int h = 0; h < CONFIG_T::n_head; h++) {//16dsp
                                 #pragma HLS UNROLL
                                 tmp_m += O[h][i][k][ii][kk] * attention_output_weight[h][k][j][kk][jj];
                             }

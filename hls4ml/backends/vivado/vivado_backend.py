@@ -28,6 +28,7 @@ from hls4ml.model.layers import (
     Softmax,
     MultiheadAttention,
     LayerNorm,
+    FeedForwardNetwork,
 )
 from hls4ml.model.optimizer import get_backend_passes, layer_optimizer
 from hls4ml.model.types import FixedPrecisionType, IntegerPrecisionType, NamedType, PackedType
@@ -134,6 +135,7 @@ class VivadoBackend(FPGABackend):
             'vivado:register_bram_weights',
             'vivado:generate_conv_streaming_instructions',
             'vivado:apply_resource_strategy',
+            'vivado:reshape_weight_for_tiling',
             'vivado:generate_conv_im2col',
         ]
         vivado_types_flow = register_flow('specific_types', vivado_types, requires=[init_flow], backend=self.name)
@@ -501,7 +503,7 @@ class VivadoBackend(FPGABackend):
         layer.set_attr('tiling_factor', tiling_factor)
         qkv_ram_style = layer.model.config.get_layer_config_value(layer, 'QKV_RAMStyle', 'Block')
         layer.set_attr('qkv_ram_style', qkv_ram_style)
-        
+        layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
 
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
 
@@ -509,4 +511,15 @@ class VivadoBackend(FPGABackend):
     def init_layernorm(self, layer):
         tiling_factor = layer.model.config.get_tiling_factor(layer)
         layer.set_attr('tiling_factor', tiling_factor)
+        layer.set_attr('mean_t', layer.model.config.get_layer_config_value(layer, 'mean_t', 'ap_fixed<18,8>'))
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
+        layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
+
+    @layer_optimizer(FeedForwardNetwork)
+    def init_ffn(self, layer):
+        tiling_factor = layer.model.config.get_tiling_factor(layer)
+        layer.set_attr('tiling_factor', tiling_factor)
+        layer.set_attr('in_ram_style', layer.model.config.get_layer_config_value(layer, 'InRAMStyle', 'block'))
+        layer.set_attr('out_ram_style', layer.model.config.get_layer_config_value(layer, 'OutRAMStyle', 'block'))
+        layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
+        layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
