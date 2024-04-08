@@ -53,7 +53,7 @@ class VivadoBackend(FPGABackend):
         transformer_layers = [
             MultiheadAttention,
             LayerNorm,
-            #FFN,
+            FeedForwardNetwork,
             #PositionEncoding,
         ]
 

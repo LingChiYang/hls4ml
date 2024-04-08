@@ -168,19 +168,19 @@ template<class data_T, class res_T, typename CONFIG_T>
 void MultiHeadAttention(
     hls::stream<data_T>    &data_qkv,
     hls::stream<res_T>     &res,
-    typename CONFIG_T::in_proj_weight_t  in_proj_weight[3][CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::in_proj_weight_t  in_proj_weight[3][CONFIG_T::n_head][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
     typename CONFIG_T::in_proj_bias_t    in_proj_bias[3][CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::out_proj_weight_t out_proj_weight[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // n_head,head_size_v,dim
-    typename CONFIG_T::out_proj_bias_t   out_proj_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]])
+    typename CONFIG_T::out_proj_weight_t out_proj_weight[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // n_head,head_size_v,dim
+    typename CONFIG_T::out_proj_bias_t   out_proj_bias[CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]])
 {
 
-    //data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    data_T data_qkv_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    //data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    data_T data_qkv_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     data_T K[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T V[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T Q[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T O[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T M[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    data_T M[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     //#pragma HLS STREAM off variable=data_q_buf depth=2 
     //#pragma HLS STREAM off variable=data_vk_buf depth=2 
     //#pragma HLS STREAM off variable=K depth=2
@@ -242,7 +242,7 @@ void MultiHeadAttention(
     data_T data_pack;
     store_data: 
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+        for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1
@@ -283,7 +283,7 @@ void MultiHeadAttention(
     compute_KVQ:  
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
         for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
-            for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+            for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
                 for (int h = 0; h < CONFIG_T::n_head; h++) {//48dsp
                     #pragma HLS UNROLL
@@ -432,7 +432,7 @@ void MultiHeadAttention(
     compute_output: 
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
         for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
-            for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+            for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
                 for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                     #pragma HLS UNROLL
@@ -459,7 +459,7 @@ void MultiHeadAttention(
     
     write_output:
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+        for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1
@@ -476,23 +476,23 @@ void multiheadattention(
     hls::stream<data_T>    &data_q,
     hls::stream<data_T>    &data_vk,
     hls::stream<res_T>     &res,
-    typename CONFIG_T::weight_t  attention_output_weight[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // n_head,head_size_v,dim
-    typename CONFIG_T::bias_t    attention_output_bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]],
-    typename CONFIG_T::weight_t  key_weight[CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],  // n_head,dim,head_dim
+    typename CONFIG_T::weight_t  attention_output_weight[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]],  // n_head,head_size_v,dim
+    typename CONFIG_T::bias_t    attention_output_bias[CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]],
+    typename CONFIG_T::weight_t  key_weight[CONFIG_T::n_head][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],  // n_head,dim,head_dim
     typename CONFIG_T::bias_t    key_bias[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  query_weight[CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]], //same shape as key
+    typename CONFIG_T::weight_t  query_weight[CONFIG_T::n_head][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]], //same shape as key
     typename CONFIG_T::bias_t    query_bias[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]],
-    typename CONFIG_T::weight_t  value_weight[CONFIG_T::n_head][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
+    typename CONFIG_T::weight_t  value_weight[CONFIG_T::n_head][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[2]],
     typename CONFIG_T::bias_t    value_bias[CONFIG_T::n_head][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[2]])
 {
 
-    data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    data_T data_vk_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    data_T data_q_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    data_T data_vk_buf[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     data_T K[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T V[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T Q[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
     data_T O[CONFIG_T::n_head][CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[2]];
-    data_T M[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    data_T M[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
 
     #pragma HLS ARRAY_PARTITION variable=data_q_buf complete dim=3
     #pragma HLS ARRAY_PARTITION variable=data_q_buf complete dim=4
@@ -547,7 +547,7 @@ void multiheadattention(
 
     store_data: 
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+        for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1
@@ -583,7 +583,7 @@ void multiheadattention(
     compute_KVQ:  
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
         for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
-            for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+            for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
                 for (int h = 0; h < CONFIG_T::n_head; h++) {//48dsp
                     #pragma HLS UNROLL
@@ -732,7 +732,7 @@ void multiheadattention(
     compute_output: 
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
         for (int k = 0; k < CONFIG_T::head_dim/CONFIG_T::tiling_factor[2]; k++) {
-            for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+            for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
                 #pragma HLS PIPELINE II = 1
                 for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                     #pragma HLS UNROLL
@@ -759,7 +759,7 @@ void multiheadattention(
     
     write_output:
     for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i++) {
-        for (int j = 0; j < CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]; j++) {
+        for (int j = 0; j < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; j++) {
             for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ii++) {
                 for (int jj = 0; jj < CONFIG_T::tiling_factor[1]; jj++) {
                     #pragma HLS PIPELINE II = 1

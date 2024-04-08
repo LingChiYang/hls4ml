@@ -1290,6 +1290,17 @@ class GarNetStack(GarNet):
 
 class FeedForwardNetwork(Layer):
     _expected_attributes = [
+        Attribute('embed_dim'),
+        Attribute('seq_len'),
+        Attribute('hidden_dim'),
+        WeightAttribute('in_proj_weight'),
+        WeightAttribute('in_proj_bias'),
+        WeightAttribute('out_proj_weight'),
+        WeightAttribute('out_proj_bias'),
+        TypeAttribute('in_proj_weight'),
+        TypeAttribute('in_proj_bias'),
+        TypeAttribute('out_proj_weight'),
+        TypeAttribute('out_proj_bias')
     ]
     def initialize(self):
         self.add_weights_variable(name='in_proj_weight')
@@ -1297,7 +1308,7 @@ class FeedForwardNetwork(Layer):
         self.add_weights_variable(name='out_proj_weight')
         self.add_weights_variable(name='out_proj_bias')
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
-        shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
+        shape = [self.attributes['seq_len'], self.attributes['embed_dim']]
         self.add_output_variable(shape, dims)
 
 
@@ -1308,14 +1319,14 @@ class LayerNorm(Layer):
         self.add_weights_variable(name='scale')
         self.add_weights_variable(name='bias')
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
-        shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
+        shape = [self.attributes['seq_len'], self.attributes['embed_dim']]
         self.add_output_variable(shape, dims)
 
 class MultiheadAttention(Layer):
     _expected_attributes = [
         Attribute('num_heads'),
         Attribute('head_dim'),
-        Attribute('feature_dim'),
+        Attribute('embed_dim'),
         Attribute('seq_len'),
         WeightAttribute('in_proj_weight'),
         WeightAttribute('in_proj_bias'),
@@ -1334,7 +1345,7 @@ class MultiheadAttention(Layer):
         self.add_weights_variable(name='out_proj_weight')
         self.add_weights_variable(name='out_proj_bias')
         dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
-        shape = [self.attributes['seq_len'], self.attributes['feature_dim']]
+        shape = [self.attributes['seq_len'], self.attributes['embed_dim']]
         self.add_output_variable(shape, dims)
 
 class LayerGroup(Layer):

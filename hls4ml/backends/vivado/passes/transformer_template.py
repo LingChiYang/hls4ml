@@ -9,7 +9,7 @@ from hls4ml.model.layers import (
 mha_template = """struct config{index} : nnet::mha_config {{
     static const unsigned n_head = {num_heads};
     static const unsigned head_dim = {head_dim};
-    static const unsigned feature_dim = {feature_dim};
+    static const unsigned embed_dim = {embed_dim};
     static const unsigned seq_len = {seq_len};
     static const unsigned qkv_ram_style = nnet::block;
     static const unsigned attn_ram_style = nnet::block;
@@ -25,18 +25,22 @@ mha_template = """struct config{index} : nnet::mha_config {{
     
 }};\n"""
 
-ffn_template = """struct ffn_config{index} : nnet::ffn_config {{
+ffn_template = """struct config{index} : nnet::ffn_config {{
     static const unsigned seq_len = {seq_len};
-    static const unsigned feature_dim = {feature_dim};
+    static const unsigned embed_dim = {embed_dim};
     static const unsigned hidden_dim = {hidden_dim};
     static const unsigned in_ram_style = nnet::{in_ram_style};
     static const unsigned out_ram_style = nnet::{out_ram_style};
-    static const unsigned tiling_factor[3] = {tiling_factor};
+    static constexpr unsigned tiling_factor[3] = {tiling_factor};
+    typedef {out_proj_bias_t.name} out_proj_bias_t;
+    typedef {out_proj_weight_t.name} out_proj_weight_t;
+    typedef {in_proj_bias_t.name} in_proj_bias_t;
+    typedef {in_proj_weight_t.name} in_proj_weight_t;
 }};\n"""
 
 layernorm_template = """struct config{index} : nnet::layernorm_config {{
     static const unsigned seq_len = {seq_len};
-    static const unsigned feature_dim = {feature_dim};
+    static const unsigned embed_dim = {embed_dim};
     static const unsigned table_size = {table_size};
     static constexpr double table_range = {table_range};
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
@@ -64,8 +68,6 @@ class MHAConfigTemplate(LayerConfigTemplate):
     def format(self, node):
         params = self._default_config_params(node)
         params['tiling_factor'] = '{'+','.join([str(x) for x in params['tiling_factor']])+'}'
-        print('MHAFunctionTemplate')
-        print(params.keys())
         mha_config = self.mha_template.format(**params)
         return mha_config
 
@@ -80,8 +82,6 @@ class MHAFunctionTemplate(FunctionCallTemplate):
         params['iprj_b'] = node.get_weights('in_proj_bias').name
         params['oprj_w'] = node.get_weights('out_proj_weight').name
         params['oprj_b'] = node.get_weights('out_proj_bias').name
-        print('MHAFunctionTemplate')
-        print(params.keys())
         return self.templates.format(**params)
 
 class LayerNormConfigTemplate(LayerConfigTemplate):

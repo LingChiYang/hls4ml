@@ -7,7 +7,7 @@ from hls4ml.converters.pytorch_to_hls import layer_handlers
 def parse_layernorm_layer(operation, layer_name, input_names, input_shapes, node, class_object, data_reader, config):
     assert 'LayerNorm' in operation
     layer = {}
-    layer['feature_dim'] = input_shapes[0][-1]
+    layer['embed_dim'] = input_shapes[0][-1]
     layer['seq_len'] = input_shapes[0][-2]
     layer['name'] = layer_name
     layer['inputs'] = input_names
@@ -34,7 +34,7 @@ def parse_mha_layer(operation, layer_name, input_names, input_shapes, node, clas
     #TODO: implement for other weights and biases
     layer['num_heads'] = class_object.num_heads
     layer['head_dim'] = class_object.head_dim
-    layer['feature_dim'] = class_object.embed_dim
+    layer['embed_dim'] = class_object.embed_dim
     layer['seq_len'] = input_shapes[0][-2]
     layer['in_proj_weight_data'] = class_object.in_proj_weight.data.numpy()
     layer['in_proj_bias_data'] = class_object.in_proj_bias.data.numpy()
@@ -52,7 +52,7 @@ def parse_ffn_layer(operation, layer_name, input_names, input_shapes, node, clas
     layer['name'] = layer_name
     layer['inputs'] = input_names.copy()
     layer['class_name'] = 'FeedForwardNetwork'
-    layer['feature_dim'] = input_shapes[0][-1]
+    layer['embed_dim'] = input_shapes[0][-1]
     layer['hidden_dim'] = class_object1.out_features
     assert class_object1.out_features == class_object2.in_features
     layer['seq_len'] = input_shapes[0][-2]
@@ -98,7 +98,7 @@ def parse_transenc_layer(operation, layer_name, input_names, input_shapes, node,
         sublayer["activation"] = class_object.activation
         layer_list.append(sublayer)
 
-        sublayer, _= layer_handlers['add']('add', layer_name+'_add2', [layer_name+'_ffn', layer_name+'_norm2'], input_shapes, node, subclass_object, data_reader, config)
+        sublayer, _= layer_handlers['add']('add', layer_name+'_add2', [layer_name+'_ffn', layer_name+'_add1'], input_shapes, node, subclass_object, data_reader, config)
         layer_list.append(sublayer)
     else:
         subclass_object = class_object.__dict__['_modules']['self_attn']

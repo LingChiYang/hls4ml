@@ -30,8 +30,11 @@ class TransformTypes(GlobalOptimizerPass):
                 else:
                     new_var = self.stream_var_converter.convert(var)
             elif io_type == 'io_tile_stream':
-                tf_T = node.get_attr('tiling_factor')[0]
-                tf_N = node.get_attr('tiling_factor')[1]
+                tf = node.get_attr('tiling_factor')
+                if tf is None:
+                    raise Exception(f'No tiling factor found in {node.name} ({node.__class__.__name__})')
+                tf_T = tf[0]
+                tf_N = tf[1]
                 var.shape = [var.shape[0]//tf_T, var.shape[1]//tf_N, tf_T*tf_N]
                 new_var = self.stream_var_converter.convert(var)
             elif io_type == 'io_serial':

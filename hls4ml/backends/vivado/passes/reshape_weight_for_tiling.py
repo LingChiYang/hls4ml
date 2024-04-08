@@ -1,6 +1,6 @@
 import numpy as np
 
-from hls4ml.model.layers import MultiheadAttention, LayerNorm
+from hls4ml.model.layers import MultiheadAttention, LayerNorm, FeedForwardNetwork
 from hls4ml.model.optimizer import OptimizerPass
 
 
@@ -8,10 +8,8 @@ class ReshapeWeightForTiling(OptimizerPass):
     '''Reshape the weights of the layers with resource strategy to be compatible with tiling.'''
 
     def match(self, node):
-        node_matches = isinstance(node, (MultiheadAttention, LayerNorm))
+        node_matches = isinstance(node, (MultiheadAttention, LayerNorm, FeedForwardNetwork))
         is_io_tile_stream = node.get_attr('iotype', '').lower() == 'io_tile_stream'
-        print('iotype:', node.get_attr('iotype', ''))
-        print(node.__class__.__name__)
 
         return node_matches and is_io_tile_stream and not node.get_attr('_weights_reshaped', False)
 
@@ -42,20 +40,25 @@ class ReshapeWeightForTiling(OptimizerPass):
             node.weights['out_proj_bias'].data = np.reshape(node.weights['out_proj_bias'].data, \
                                                             (node.weights['out_proj_bias'].data.shape[0]//node.get_attr("tiling_factor")[1], node.get_attr("tiling_factor")[1]))        
             node.weights['out_proj_bias'].shape = node.weights['out_proj_bias'].data.shape
-        #elif isinstance(node, (FFN)):
-        #    #get iotype
-        #    if model.config.get_config_value('IOType') == 'io_array_stream':
-        #        node.weights['ffn1_weight'].data = np.reshape(node.weights['ffn1_weight'].data, (node.weights['ffn1_weight'].data.shape[0]//node.get_attr("block_y"), node.get_attr("block_y"), node.weights['ffn1_weight'].data.shape[1]//node.get_attr("block_k"), node.get_attr("block_k")))
-        #        node.weights['ffn1_weight'].data = np.transpose(node.weights['ffn1_weight'].data, axes=[0, 2, 1, 3])
-        #        node.weights['ffn2_weight'].data = np.reshape(node.weights['ffn2_weight'].data, (node.weights['ffn2_weight'].data.shape[0]//node.get_attr("block_k"), node.get_attr("block_k"), node.weights['ffn2_weight'].data.shape[1]//node.get_attr("block_y"), node.get_attr("block_y")))
-        #        node.weights['ffn2_weight'].data = np.transpose(node.weights['ffn2_weight'].data, axes=[0, 2, 1, 3])  
-        #        node.weights['ffn1_weight'].shape = node.weights['ffn1_weight'].data.shape
-        #        node.weights['ffn2_weight'].shape = node.weights['ffn2_weight'].data.shape
-        #        node.weights['ffn1_bias'].data = np.reshape(node.weights['ffn1_bias'].data, (node.weights['ffn1_bias'].data.shape[0]//node.get_attr("block_k"), node.get_attr("block_k")))
-        #        node.weights['ffn1_bias'].shape = node.weights['ffn1_bias'].data.shape
-        #        node.weights['ffn2_bias'].data = np.reshape(node.weights['ffn2_bias'].data, (node.weights['ffn2_bias'].data.shape[0]//node.get_attr("block_y"), node.get_attr("block_y")))
-        #        node.weights['ffn2_bias'].shape = node.weights['ffn2_bias'].data.shape
-        #        print("data shape",node.weights['ffn1_weight'].shape)
+        elif isinstance(node, (FeedForwardNetwork)):
+            node.weights['in_proj_weight'].data = np.reshape(node.weights['in_proj_weight'].data, \
+                                                            (node.weights['in_proj_weight'].data.shape[0]//node.get_attr("tiling_factor")[2], \
+                                                            node.get_attr("tiling_factor")[2], \
+                                                            node.weights['in_proj_weight'].data.shape[1]//node.get_attr("tiling_factor")[1], \
+                                                            node.get_attr("tiling_factor")[1]))
+            node.weights['in_proj_weight'].data = np.transpose(node.weights['in_proj_weight'].data, axes=[2, 0, 3, 1])
+            node.weights['out_proj_weight'].data = np.reshape(node.weights['out_proj_weight'].data,  \
+                                                            (node.weights['out_proj_weight'].data.shape[0]//node.get_attr("tiling_factor")[1], \
+                                                            node.get_attr("tiling_factor")[1], \
+                                                            node.weights['out_proj_weight'].data.shape[1]//node.get_attr("tiling_factor")[2], \
+                                                            node.get_attr("tiling_factor")[2]))
+            node.weights['out_proj_weight'].data = np.transpose(node.weights['out_proj_weight'].data, axes=[2, 0, 3, 1])  
+            node.weights['in_proj_weight'].shape = node.weights['in_proj_weight'].data.shape
+            node.weights['out_proj_weight'].shape = node.weights['out_proj_weight'].data.shape
+            node.weights['in_proj_bias'].data = np.reshape(node.weights['in_proj_bias'].data, (node.weights['in_proj_bias'].data.shape[0]//node.get_attr("tiling_factor")[1], node.get_attr("tiling_factor")[1]))
+            node.weights['in_proj_bias'].shape = node.weights['in_proj_bias'].data.shape
+            node.weights['out_proj_bias'].data = np.reshape(node.weights['out_proj_bias'].data, (node.weights['out_proj_bias'].data.shape[0]//node.get_attr("tiling_factor")[2], node.get_attr("tiling_factor")[2]))
+            node.weights['out_proj_bias'].shape = node.weights['out_proj_bias'].data.shape
         elif isinstance(node, (LayerNorm)):
             node.weights['scale'].data = np.reshape(node.weights['scale'].data, (node.weights['scale'].data.shape[0]//node.get_attr("tiling_factor")[1], node.get_attr("tiling_factor")[1]))
             node.weights['scale'].shape = node.weights['scale'].data.shape

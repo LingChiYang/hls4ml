@@ -458,6 +458,7 @@ class ModelGraph:
                 self._apply_sub_flow(sub_flow, applied_flows)
 
         if len(flow.optimizers) > 0:
+            #print optimizer name
             applied_passes = optimize_model(self, flow.optimizers)
         else:
             applied_passes = set()

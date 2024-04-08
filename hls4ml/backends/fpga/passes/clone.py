@@ -9,6 +9,7 @@ class Clone(Layer):
     '''Inserted after the layer whose output is used more than once.'''
 
     def initialize(self):
+        self.set_attr('tiling_factor', self.model.config.get_config_value('TilingFactor', [1,1,1]))
         inp = self.get_input_variable()
         for i, out_name in enumerate(self.outputs):
             self.add_output_variable(inp.shape, inp.dim_names, out_name=out_name, var_name='layer{index}_cpy' + str(i + 1))
@@ -57,7 +58,7 @@ class CloneOutput(OptimizerPass):
         return True
 
     def transform(self, model, node):
-        if model.config.get_config_value('IOType') != 'io_stream':
+        if model.config.get_config_value('IOType') != 'io_stream' and model.config.get_config_value('IOType') != 'io_tile_stream':
             return False
 
         output_map = node.get_output_use_map()
