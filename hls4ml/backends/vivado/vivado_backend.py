@@ -505,6 +505,11 @@ class VivadoBackend(FPGABackend):
         layer.set_attr('qkv_ram_style', qkv_ram_style)
         layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
 
+        exp_table_range = layer.model.config.get_layer_config_value(layer, 'exp_table_range', 8)
+        inv_table_range = layer.model.config.get_layer_config_value(layer, 'inv_table_range', 128)
+        layer.set_attr('exp_table_range', exp_table_range)
+        layer.set_attr('inv_table_range', inv_table_range)
+        
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
 
     @layer_optimizer(LayerNorm)

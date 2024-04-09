@@ -64,8 +64,8 @@ void LayerNormalize(
     typename CONFIG_T::bias_t   bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]]
 )
 {
-    data_T in_val[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    data_T outval[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    typename data_T::value_type in_val[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    typename res_T::value_type outval[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     #pragma HLS ARRAY_PARTITION variable=scale complete dim=2
     #pragma HLS ARRAY_PARTITION variable=bias complete dim=2
     #pragma HLS ARRAY_PARTITION variable=in_val complete dim=3
@@ -96,13 +96,15 @@ void LayerNormalize(
     store_input: 
     for (int j=0; j < T; ++j){
         for (int i=0; i < N; ++i){
+            #pragma HLS PIPELINE
             for (int jj=0; jj < tf_T; ++jj){
+                #pragma HLS UNROLL
                 for (int ii=0; ii < tf_N; ++ii){
-                    #pragma HLS PIPELINE
+                    #pragma HLS UNROLL
                     if (jj == 0 && ii == 0) {
                         data_pack = data.read();
                     }
-                    in_val[j][i][jj][ii] = data_pack.data[jj*tf_N+ii];
+                    in_val[j][i][jj][ii] = data_pack[jj*tf_N+ii];
                 }
             }
         }
@@ -186,11 +188,13 @@ void LayerNormalize(
 
     store_output:   for (int j=0; j < T; ++j){
                         for (int i=0; i < N; ++i){
+                            #pragma HLS PIPELINE
                             for (int jj=0; jj < tf_T; ++jj){
+                                #pragma HLS UNROLL
                                 for (int ii=0; ii < tf_N; ++ii){
-                                    #pragma HLS PIPELINE
+                                    #pragma HLS UNROLL
                                     res_T res_pack;
-                                    res_pack.data[jj*tf_N+ii] = outval[j][i][jj][ii];
+                                    res_pack[jj*tf_N+ii] = outval[j][i][jj][ii];
                                     if (jj == tf_T-1 && ii == tf_N-1){
                                         res.write(res_pack);
                                     }

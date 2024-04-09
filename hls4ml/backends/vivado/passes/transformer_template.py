@@ -21,7 +21,12 @@ mha_template = """struct config{index} : nnet::mha_config {{
     typedef {out_proj_weight_t.name} out_proj_weight_t;
     typedef {in_proj_bias_t.name} in_proj_bias_t;
     typedef {in_proj_weight_t.name} in_proj_weight_t;
+    typedef {table_t.name} exp_table_t;
+    typedef {table_t.name} inv_table_t;
     typedef {table_t.name} table_t;
+    typedef {accum_t.name} accum_t;
+    static const unsigned inv_range = {inv_table_range};
+    static const unsigned exp_range = {exp_table_range};
     
 }};\n"""
 
@@ -36,6 +41,7 @@ ffn_template = """struct config{index} : nnet::ffn_config {{
     typedef {out_proj_weight_t.name} out_proj_weight_t;
     typedef {in_proj_bias_t.name} in_proj_bias_t;
     typedef {in_proj_weight_t.name} in_proj_weight_t;
+    typedef {accum_t.name} accum_t;
 }};\n"""
 
 layernorm_template = """struct config{index} : nnet::layernorm_config {{

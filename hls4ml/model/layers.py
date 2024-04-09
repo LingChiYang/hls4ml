@@ -1300,7 +1300,8 @@ class FeedForwardNetwork(Layer):
         TypeAttribute('in_proj_weight'),
         TypeAttribute('in_proj_bias'),
         TypeAttribute('out_proj_weight'),
-        TypeAttribute('out_proj_bias')
+        TypeAttribute('out_proj_bias'),
+        TypeAttribute('accum_t'),
     ]
     def initialize(self):
         self.add_weights_variable(name='in_proj_weight')
@@ -1335,7 +1336,8 @@ class MultiheadAttention(Layer):
         TypeAttribute('in_proj_weight'),
         TypeAttribute('in_proj_bias'),
         TypeAttribute('out_proj_weight'),
-        TypeAttribute('out_proj_bias')
+        TypeAttribute('out_proj_bias'),
+        TypeAttribute('accum_t'),
     ]
 
     def initialize(self):
