@@ -32,9 +32,10 @@ namespace nnet {
 
 struct layernorm_config {
     static const unsigned seq_len = 180;
-    static const unsigned feature_dim = 182;
+    static const unsigned embed_dim = 182;
     static const unsigned table_size = 1024;
     static constexpr double table_range = 1;
+    static const unsigned log_table_range = 10;
     static constexpr unsigned tiling_factor[3] = {1,1,1};
     typedef model_default_t bias_t;
     typedef model_default_t scale_t;
@@ -44,28 +45,32 @@ struct layernorm_config {
 template<typename CONFIG_T, int N_TABLE, int dim>
 void init_n_invert_sqr_table(typename CONFIG_T::table_t table_out[N_TABLE])
 {
-    float inv_range = CONFIG_T::table_range;
+    //float inv_range = CONFIG_T::table_range;
     // Inversion function:
     //   result = 1/sqrt(x)
     for (int ii = 0; ii < N_TABLE; ii++) {
         // First, convert from table index to X-value (signed 8-bit, range 0 to +0.01)
-        float in_val = inv_range*ii/float(N_TABLE);
+        float in_val = ii/float(N_TABLE >> CONFIG_T::log_table_range);
         // Next, compute lookup table function
         if (in_val > 0.0) table_out[ii] = float(dim)/sqrt(in_val);
         else table_out[ii] = 0.0;
     }
+    //print all table value
+    //for (int i = 0; i < N_TABLE; i++){
+    //    std::cout << "table_out[" << i << "]: " << table_out[i] << std::endl;
+    //}
 }
 
 template<class data_T, class res_T, typename CONFIG_T>
 void LayerNormalize(
     hls::stream<data_T>    &data,
     hls::stream<res_T>     &res,
-    typename CONFIG_T::scale_t  scale[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]],
-    typename CONFIG_T::bias_t   bias[CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]]
+    typename CONFIG_T::scale_t  scale[CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]],
+    typename CONFIG_T::bias_t   bias[CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]]
 )
 {
-    typename data_T::value_type in_val[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    typename res_T::value_type outval[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::feature_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    typename data_T::value_type in_val[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    typename res_T::value_type outval[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     #pragma HLS ARRAY_PARTITION variable=scale complete dim=2
     #pragma HLS ARRAY_PARTITION variable=bias complete dim=2
     #pragma HLS ARRAY_PARTITION variable=in_val complete dim=3
@@ -73,8 +78,6 @@ void LayerNormalize(
     #pragma HLS ARRAY_PARTITION variable=outval complete dim=4
     #pragma HLS ARRAY_PARTITION variable=outval complete dim=3
 
-    int inv_range_inv = (int) 1/ CONFIG_T::table_range;
-    typename CONFIG_T::table_t deno_inver = 0;
     #ifdef __HLS_SYN__
         bool initialized = false;
         typename CONFIG_T::table_t invert_sqr_table[CONFIG_T::table_size];
@@ -83,14 +86,14 @@ void LayerNormalize(
         static typename CONFIG_T::table_t invert_sqr_table[CONFIG_T::table_size];
     #endif
     if (!initialized) {
-        init_n_invert_sqr_table<CONFIG_T, CONFIG_T::table_size, CONFIG_T::feature_dim>(invert_sqr_table);
+        init_n_invert_sqr_table<CONFIG_T, CONFIG_T::table_size, CONFIG_T::embed_dim>(invert_sqr_table);
         initialized = true;
     }
 
     const unsigned int tf_T = CONFIG_T::tiling_factor[0];
     const unsigned int tf_N = CONFIG_T::tiling_factor[1];
     const unsigned int T = CONFIG_T::seq_len/tf_T;
-    const unsigned int N = CONFIG_T::feature_dim/tf_N;
+    const unsigned int N = CONFIG_T::embed_dim/tf_N;
 
     data_T data_pack;
     store_input: 
@@ -117,22 +120,26 @@ void LayerNormalize(
     typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::tiling_factor[0]];
     typename CONFIG_T::mean_t xsum[CONFIG_T::tiling_factor[0]];
     typename CONFIG_T::mean_t xsqrsum[CONFIG_T::tiling_factor[0]];
+    bool write_buffer1[tf_T];
+    typename CONFIG_T::table_t deno_inver[tf_T];
+    for (int jj=0; jj < tf_T; ++jj){
+        write_buffer1[jj] = true;
+    }
     #pragma HLS ARRAY_PARTITION variable=xsqrsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsum_1 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=prev_xsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsqrsum_2 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsum_2 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=prev_xsum_2 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsqrsum complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsum complete dim=1
-    bool mean_init = false;
+    #pragma HLS ARRAY_PARTITION variable=deno_inver complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=write_buffer1 complete dim=1
     layerNorm:  for (int j=0; j <= T; ++j){
                     for (int i=0; i < N; ++i){
                         #pragma HLS PIPELINE
                         for (int jj=0; jj < tf_T; ++jj){
                             #pragma HLS UNROLL
                             if (i == 0){
-                                if (mean_init == false){
+                                if (write_buffer1[jj] == true){
                                     xsqrsum_1[jj] = 0;
                                     xsum_1[jj] = 0;
                                 } else {
@@ -145,47 +152,53 @@ void LayerNormalize(
                                 if (j < T){
                                     typename CONFIG_T::mean_t tmp = in_val[j][i][jj][ii];
                                     typename CONFIG_T::mean_t tmp2 = tmp*tmp;
-                                    if (mean_init == false){
+                                    if (write_buffer1[jj] == true){
                                         xsum_1[jj] = xsum_1[jj] + tmp;
                                         xsqrsum_1[jj] = xsqrsum_1[jj] + tmp2;//(tmp - xsum_1[jj])*(tmp - prev_xsum_1[jj]);
-                                        //prev_xsum_1[jj] = xsum_1[jj];
                                     } else {
                                         xsum_2[jj] = xsum_2[jj] + tmp;
                                         xsqrsum_2[jj] = xsqrsum_2[jj] + tmp2;//(tmp - xsum_2[jj])*(tmp - prev_xsum_2[jj]);
-                                        //prev_xsum_2[jj] = xsum_2[jj];
                                     }
                                 }
                                 if (j > 0){
-                                    if (mean_init == false){
+                                    if (write_buffer1[jj] == false){
                                         xsum[jj] = xsum_1[jj];
                                     } else {
                                         xsum[jj] = xsum_2[jj];
                                     }
-                                    outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii]*CONFIG_T::feature_dim - xsum[jj])*deno_inver*scale[i][ii] + bias[i][ii];
-                                    //outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii]*dim - prev_xsum[jj])*deno_inver*scale[i][ii] + bias[i][ii];
+                                    outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii]*CONFIG_T::embed_dim - xsum[jj])*deno_inver[jj]*scale[i][ii] + bias[i][ii];
                                 }
                             }
                             if (i == (N-1)){
-                                if (mean_init == false){
+                                write_buffer1[jj] = !write_buffer1[jj];
+                                if (write_buffer1[jj] == false){
                                     xsqrsum[jj] = xsqrsum_1[jj];
                                     xsum[jj] = xsum_1[jj];
-                                    mean_init = true;
                                 } else {
                                     xsqrsum[jj] = xsqrsum_2[jj];
                                     xsum[jj] = xsum_2[jj];
-                                    mean_init = false;
                                 }
-                                typename CONFIG_T::mean_t tmp3 = CONFIG_T::feature_dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
-                                int index = tmp3*(CONFIG_T::table_size)*inv_range_inv;
-                                if (CONFIG_T::table_range > 1) index = tmp3*(CONFIG_T::table_size)/ (int)CONFIG_T::table_range;
+                                typename CONFIG_T::mean_t tmp3 = CONFIG_T::embed_dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
+                                int index = tmp3*(CONFIG_T::table_size) >> CONFIG_T::log_table_range;
                                 if (index < 0)   index = 0;
                                 if (index > CONFIG_T::table_size-1) index = CONFIG_T::table_size-1;
-                                deno_inver = (typename CONFIG_T::table_t) invert_sqr_table[index];
+                                deno_inver[jj] = (typename CONFIG_T::table_t) invert_sqr_table[index];
                             }
                         }
                     }
                 }
-
+    //save outval array
+    for (int j=0; j < T; ++j){
+        for (int jj=0; jj < tf_T; ++jj){
+            for (int i=0; i < N; ++i){
+                for (int ii=0; ii < tf_N; ++ii){
+                    std::cout << outval[j][i][jj][ii] << " ";
+                }
+            }
+            std::cout << std::endl;
+        }
+    }
+    std::cout << "change" << std::endl;
     store_output:   for (int j=0; j < T; ++j){
                         for (int i=0; i < N; ++i){
                             #pragma HLS PIPELINE
@@ -205,140 +218,6 @@ void LayerNormalize(
     
 }
 
-template<class data_T, class res_T, typename CONFIG_T>
-void layernormalize(
-    hls::stream<data_T>    &data,
-    hls::stream<res_T>     &res,
-    typename CONFIG_T::scale_t  scale[CONFIG_T::n_in/CONFIG_T::seq_len/CONFIG_T::block_y][CONFIG_T::block_y],
-    typename CONFIG_T::bias_t   bias[CONFIG_T::n_in/CONFIG_T::seq_len/CONFIG_T::block_y][CONFIG_T::block_y]
-)
-{
-    static const unsigned dim = CONFIG_T::n_in/CONFIG_T::seq_len;
-    data_T in_val[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][dim/CONFIG_T::block_y][CONFIG_T::tiling_factor[0]][CONFIG_T::block_y];
-    data_T outval[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][dim/CONFIG_T::block_y][CONFIG_T::tiling_factor[0]][CONFIG_T::block_y];
-    #pragma HLS ARRAY_PARTITION variable=scale complete dim=2
-    #pragma HLS ARRAY_PARTITION variable=bias complete dim=2
-    #pragma HLS ARRAY_PARTITION variable=in_val complete dim=3
-    #pragma HLS ARRAY_PARTITION variable=in_val complete dim=4
-    #pragma HLS ARRAY_PARTITION variable=outval complete dim=4
-    #pragma HLS ARRAY_PARTITION variable=outval complete dim=3
-
-    int inv_range_inv = (int) 1/ CONFIG_T::table_range;
-    typename CONFIG_T::table_t deno_inver = 0;
-    #ifdef __HLS_SYN__
-        bool initialized = false;
-        typename CONFIG_T::table_t invert_sqr_table[CONFIG_T::table_size];
-    #else
-        static bool initialized = false;
-        static typename CONFIG_T::table_t invert_sqr_table[CONFIG_T::table_size];
-    #endif
-    if (!initialized) {
-        init_n_invert_sqr_table<CONFIG_T, CONFIG_T::table_size, dim>(invert_sqr_table);
-        initialized = true;
-    }
-    
-    store_input: for (int j=0; j <CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; ++j){
-        for (int i=0; i < dim/CONFIG_T::block_y; ++i){
-            for (int jj=0; jj < CONFIG_T::tiling_factor[0]; ++jj){
-                for (int ii=0; ii < CONFIG_T::block_y; ++ii){
-                    #pragma HLS PIPELINE
-                    in_val[j][i][jj][ii] = data.read();
-                }
-            }
-        }
-    }
-    typename CONFIG_T::mean_t xsqrsum_1[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsum_1[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t prev_xsum_1[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsqrsum_2[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsum_2[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsum[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsqrsum[CONFIG_T::tiling_factor[0]];
-    #pragma HLS ARRAY_PARTITION variable=xsqrsum_1 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=xsum_1 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=prev_xsum_1 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=xsqrsum_2 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=xsum_2 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=prev_xsum_2 complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=xsqrsum complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=xsum complete dim=1
-    bool mean_init = false;
-    layerNorm:  for (int j=0; j <= CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; ++j){
-                    for (int i=0; i < dim/CONFIG_T::block_y; ++i){
-                        #pragma HLS PIPELINE
-                        for (int jj=0; jj < CONFIG_T::tiling_factor[0]; ++jj){
-                            #pragma HLS UNROLL
-                            if (i == 0){
-                                if (mean_init == false){
-                                    xsqrsum_1[jj] = 0;
-                                    xsum_1[jj] = 0;
-                                } else {
-                                    xsqrsum_2[jj] = 0;
-                                    xsum_2[jj] = 0;
-                                }
-                            }
-                            for (int ii=0; ii < CONFIG_T::block_y; ++ii){
-                                #pragma HLS UNROLL
-                                if (j < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]){
-                                    typename CONFIG_T::mean_t tmp = in_val[j][i][jj][ii];
-                                    typename CONFIG_T::mean_t tmp2 = tmp*tmp;
-                                    if (mean_init == false){
-                                        xsum_1[jj] = xsum_1[jj] + tmp;
-                                        xsqrsum_1[jj] = xsqrsum_1[jj] + tmp2;//(tmp - xsum_1[jj])*(tmp - prev_xsum_1[jj]);
-                                        //prev_xsum_1[jj] = xsum_1[jj];
-                                    } else {
-                                        xsum_2[jj] = xsum_2[jj] + tmp;
-                                        xsqrsum_2[jj] = xsqrsum_2[jj] + tmp2;//(tmp - xsum_2[jj])*(tmp - prev_xsum_2[jj]);
-                                        //prev_xsum_2[jj] = xsum_2[jj];
-                                    }
-                                }
-                                if (j > 0){
-                                    if (mean_init == false){
-                                        xsum[jj] = xsum_1[jj];
-                                    } else {
-                                        xsum[jj] = xsum_2[jj];
-                                    }
-                                    outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii]*dim - xsum[jj])*deno_inver*scale[i][ii] + bias[i][ii];
-                                    //outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii]*dim - prev_xsum[jj])*deno_inver*scale[i][ii] + bias[i][ii];
-                                }
-                            }
-                            if (i == (dim/CONFIG_T::block_y-1)){
-                                if (mean_init == false){
-                                    //print xsqrsum_1[jj];
-                                    //std::cout << "xsqrsum_1: " << xsqrsum_1[jj] << std::endl;
-                                    xsqrsum[jj] = xsqrsum_1[jj];
-                                    xsum[jj] = xsum_1[jj];
-                                    mean_init = true;
-                                } else {
-                                    //std::cout << "xsqrsum_2: " << xsqrsum_2[jj] << std::endl;
-                                    xsqrsum[jj] = xsqrsum_2[jj];
-                                    xsum[jj] = xsum_2[jj];
-                                    mean_init = false;
-                                }
-                                typename CONFIG_T::mean_t tmp3 = dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
-                                int index = tmp3*(CONFIG_T::table_size)*inv_range_inv;
-                                if (CONFIG_T::table_range > 1) index = tmp3*(CONFIG_T::table_size)/ (int)CONFIG_T::table_range;
-                                if (index < 0)   index = 0;
-                                if (index > CONFIG_T::table_size-1) index = CONFIG_T::table_size-1;
-                                deno_inver = (typename CONFIG_T::table_t) invert_sqr_table[index];
-                            }
-                        }
-                    }
-                }
-
-    store_output:   for (int j=0; j <CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; ++j){
-                        for (int i=0; i < dim/CONFIG_T::block_y; ++i){
-                            for (int jj=0; jj < CONFIG_T::tiling_factor[0]; ++jj){
-                                for (int ii=0; ii < CONFIG_T::block_y; ++ii){
-                                    #pragma HLS PIPELINE
-                                    res.write(outval[j][i][jj][ii]);
-                                }
-                            }
-                        }
-                    }
-    
-}
 
 }
 

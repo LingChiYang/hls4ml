@@ -47,13 +47,13 @@ ffn_template = """struct config{index} : nnet::ffn_config {{
 layernorm_template = """struct config{index} : nnet::layernorm_config {{
     static const unsigned seq_len = {seq_len};
     static const unsigned embed_dim = {embed_dim};
-    static const unsigned table_size = {table_size};
-    static constexpr double table_range = {table_range};
+    static const unsigned table_size = 2048;
+    static const unsigned log_table_range = 11;
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
-    typedef {mean_t} mean_t;   
+    typedef {bias_t.name} mean_t;   
     typedef {bias_t.name} bias_t;
     typedef {scale_t.name} scale_t;
-    typedef {table_t.name} table_t;
+    typedef {bias_t.name} table_t;
 }};\n"""
 
 

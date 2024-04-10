@@ -19,6 +19,7 @@ struct broadcast_config {
 template <class data_T, class res_T, int N>
 void clone_stream(hls::stream<data_T> &data, hls::stream<res_T> &res1, hls::stream<res_T> &res2) {
 CloneLoop:
+    //std::cout << "N: " << N << std::endl;
     for (int i = 0; i < N / data_T::size; i++) {
         #pragma HLS PIPELINE
 
@@ -34,7 +35,7 @@ CloneLoop:
             out_data1[j] = in_data[j];
             out_data2[j] = in_data[j];
         }
-
+        //std::cout << "out_data1: " << out_data1[0] << " " <<std::endl;
         res1.write(out_data1);
         res2.write(out_data2);
     }

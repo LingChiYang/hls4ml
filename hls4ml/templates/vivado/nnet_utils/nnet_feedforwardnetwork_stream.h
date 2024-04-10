@@ -58,7 +58,7 @@ void FeedForwardNetwork(
                 #pragma HLS UNROLL
                 for (int jj=0; jj < CONFIG_T::tiling_factor[1]; ++jj){
                     #pragma HLS UNROLL
-                    if (i == 0 && j == 0) {
+                    if (ii == 0 && jj == 0) {
                         data_pack = data.read();
                     }
                     input_buffer[i][j][ii][jj] = data_pack[ii*CONFIG_T::tiling_factor[1]+jj];

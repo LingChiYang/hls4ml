@@ -60,7 +60,7 @@ class ReshapeWeightForTiling(OptimizerPass):
             node.weights['out_proj_bias'].data = np.reshape(node.weights['out_proj_bias'].data, (node.weights['out_proj_bias'].data.shape[0]//node.get_attr("tiling_factor")[2], node.get_attr("tiling_factor")[2]))
             node.weights['out_proj_bias'].shape = node.weights['out_proj_bias'].data.shape
         elif isinstance(node, (LayerNorm)):
-            node.weights['scale'].data = np.reshape(node.weights['scale'].data, (node.weights['scale'].data.shape[0]//node.get_attr("tiling_factor")[1], node.get_attr("tiling_factor")[1]))
+            node.weights['scale'].data = np.reshape(node.weights['scale'].data, (node.weights['scale'].data.shape[0]//node.get_attr("tiling_factor")[1], node.get_attr("tiling_factor")[1])) / node.get_attr("embed_dim")
             node.weights['scale'].shape = node.weights['scale'].data.shape
             node.weights['bias'].data = np.reshape(node.weights['bias'].data, (node.weights['bias'].data.shape[0]//node.get_attr("tiling_factor")[1], node.get_attr("tiling_factor")[1]))
             node.weights['bias'].shape = node.weights['bias'].data.shape
