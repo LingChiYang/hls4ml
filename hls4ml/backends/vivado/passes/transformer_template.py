@@ -15,18 +15,17 @@ mha_template = """struct config{index} : nnet::mha_config {{
     static const unsigned attn_ram_style = nnet::block;
     static const unsigned out_ram_style = nnet::block;
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
-    static const unsigned table_size = {table_size};
-    static constexpr double table_range = {table_range};
+    static const unsigned table_size = 2048*2048;
     typedef {out_proj_bias_t.name} out_proj_bias_t;
     typedef {out_proj_weight_t.name} out_proj_weight_t;
     typedef {in_proj_bias_t.name} in_proj_bias_t;
     typedef {in_proj_weight_t.name} in_proj_weight_t;
-    typedef {table_t.name} exp_table_t;
-    typedef {table_t.name} inv_table_t;
-    typedef {table_t.name} table_t;
+    typedef {out_proj_bias_t.name} exp_table_t;
+    typedef {out_proj_bias_t.name} inv_table_t;
+    typedef {out_proj_bias_t.name} table_t;
     typedef {accum_t.name} accum_t;
-    static const unsigned inv_range = {inv_table_range};
-    static const unsigned exp_range = {exp_table_range};
+    static const unsigned inv_range = 256;
+    static const unsigned exp_range = 8;
     
 }};\n"""
 

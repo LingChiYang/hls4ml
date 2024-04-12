@@ -187,18 +187,7 @@ void LayerNormalize(
                         }
                     }
                 }
-    //save outval array
-    for (int j=0; j < T; ++j){
-        for (int jj=0; jj < tf_T; ++jj){
-            for (int i=0; i < N; ++i){
-                for (int ii=0; ii < tf_N; ++ii){
-                    std::cout << outval[j][i][jj][ii] << " ";
-                }
-            }
-            std::cout << std::endl;
-        }
-    }
-    std::cout << "change" << std::endl;
+    
     store_output:   for (int j=0; j < T; ++j){
                         for (int i=0; i < N; ++i){
                             #pragma HLS PIPELINE

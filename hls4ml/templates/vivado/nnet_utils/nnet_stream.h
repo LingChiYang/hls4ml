@@ -35,7 +35,6 @@ CloneLoop:
             out_data1[j] = in_data[j];
             out_data2[j] = in_data[j];
         }
-        //std::cout << "out_data1: " << out_data1[0] << " " <<std::endl;
         res1.write(out_data1);
         res2.write(out_data2);
     }

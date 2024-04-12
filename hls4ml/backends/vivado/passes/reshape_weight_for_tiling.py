@@ -30,12 +30,12 @@ class ReshapeWeightForTiling(OptimizerPass):
                                                             (3, node.get_attr("num_heads"), node.weights['in_proj_bias'].data.shape[0]//3//node.get_attr("tiling_factor")[1]//node.get_attr("num_heads"), node.get_attr("tiling_factor")[1]))
             node.weights['in_proj_bias'].shape = node.weights['in_proj_bias'].data.shape
             node.weights['out_proj_weight'].data = np.reshape(node.weights['out_proj_weight'].data, \
-                                                            (node.get_attr("num_heads"), \
-                                                            node.weights['out_proj_weight'].data.shape[0]//node.get_attr("tiling_factor")[1], \
+                                                            (node.weights['out_proj_weight'].data.shape[0]//node.get_attr("tiling_factor")[1], \
                                                             node.get_attr("tiling_factor")[1], \
+                                                            node.get_attr("num_heads"), \
                                                             node.weights['out_proj_weight'].data.shape[1]//node.get_attr("tiling_factor")[1]//node.get_attr("num_heads"), \
                                                             node.get_attr("tiling_factor")[1]))
-            node.weights['out_proj_weight'].data = np.transpose(node.weights['out_proj_weight'].data, axes=[0, 3, 1, 4, 2])
+            node.weights['out_proj_weight'].data = np.transpose(node.weights['out_proj_weight'].data, axes=[2, 3, 0, 4, 1])
             node.weights['out_proj_weight'].shape = node.weights['out_proj_weight'].data.shape
             node.weights['out_proj_bias'].data = np.reshape(node.weights['out_proj_bias'].data, \
                                                             (node.weights['out_proj_bias'].data.shape[0]//node.get_attr("tiling_factor")[1], node.get_attr("tiling_factor")[1]))        
