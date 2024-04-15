@@ -153,6 +153,28 @@ void FeedForwardNetwork(
         }
     }
 
+    //save output
+    std::ofstream file("ffn_out.txt", std::ios::app);
+    if (file.is_open()) {
+        for (int i = 0; i < CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; ++i) {
+            for (int ii = 0; ii < CONFIG_T::tiling_factor[0]; ++ii) {
+                for (int p = 0; p < CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]; ++p) {
+                    for (int pp = 0; pp < CONFIG_T::tiling_factor[1]; ++pp) {
+                        if (p == CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]-1 && pp == CONFIG_T::tiling_factor[1]-1) {
+                            file << output_buffer[i][p][ii][pp];
+                        } else {
+                            file << output_buffer[i][p][ii][pp] << " ";
+                        }
+                    }
+                }
+                file << "\n";
+            }
+        }
+        file.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
+
     res_T res_pack;
     write_output:
     for (int i=0; i <CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]; i=i+1){

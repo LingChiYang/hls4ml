@@ -52,7 +52,7 @@ void init_n_invert_sqr_table(typename CONFIG_T::table_t table_out[N_TABLE])
         // First, convert from table index to X-value (signed 8-bit, range 0 to +0.01)
         float in_val = ii/float(N_TABLE >> CONFIG_T::log_table_range);
         // Next, compute lookup table function
-        if (in_val > 0.0) table_out[ii] = float(dim)/sqrt(in_val);
+        if (in_val > 0.0) table_out[ii] = 1.0/sqrt(in_val);
         else table_out[ii] = 0.0;
     }
     //print all table value
@@ -112,6 +112,27 @@ void LayerNormalize(
             }
         }
     }
+    std::ofstream file2("layernorm_in_matrix.txt", std::ios::app);
+    if (file2.is_open()) {
+        for (int i = 0; i < T; ++i) {
+            for (int ii = 0; ii < tf_T; ++ii) {
+                for (int j = 0; j < N; ++j) {
+                    for (int jj = 0; jj < tf_N; ++jj) {
+                        if (j == N-1) {
+                            file2 << in_val[i][j][ii][jj];
+                        } else {
+                            file2 << in_val[i][j][ii][jj] << " ";
+                        }
+                    }
+                }
+                file2 << "\n";
+            }
+        }
+        file2.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
+    const typename CONFIG_T::mean_t embed_dim_inv = 1.0/CONFIG_T::embed_dim;
     typename CONFIG_T::mean_t xsqrsum_1[CONFIG_T::tiling_factor[0]];
     typename CONFIG_T::mean_t xsum_1[CONFIG_T::tiling_factor[0]];
     typename CONFIG_T::mean_t prev_xsum_1[CONFIG_T::tiling_factor[0]];
@@ -120,6 +141,7 @@ void LayerNormalize(
     typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::tiling_factor[0]];
     typename CONFIG_T::mean_t xsum[CONFIG_T::tiling_factor[0]];
     typename CONFIG_T::mean_t xsqrsum[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::mean_t xmean[CONFIG_T::tiling_factor[0]];
     bool write_buffer1[tf_T];
     typename CONFIG_T::table_t deno_inver[tf_T];
     for (int jj=0; jj < tf_T; ++jj){
@@ -151,7 +173,7 @@ void LayerNormalize(
                                 #pragma HLS UNROLL
                                 if (j < T){
                                     typename CONFIG_T::mean_t tmp = in_val[j][i][jj][ii];
-                                    typename CONFIG_T::mean_t tmp2 = tmp*tmp;
+                                    typename CONFIG_T::mean_t tmp2 = tmp*tmp*embed_dim_inv;
                                     if (write_buffer1[jj] == true){
                                         xsum_1[jj] = xsum_1[jj] + tmp;
                                         xsqrsum_1[jj] = xsqrsum_1[jj] + tmp2;//(tmp - xsum_1[jj])*(tmp - prev_xsum_1[jj]);
@@ -166,7 +188,8 @@ void LayerNormalize(
                                     } else {
                                         xsum[jj] = xsum_2[jj];
                                     }
-                                    outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii]*CONFIG_T::embed_dim - xsum[jj])*deno_inver[jj]*scale[i][ii] + bias[i][ii];
+                                    xmean[jj] = xsum[jj]*embed_dim_inv;
+                                    outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii] - xmean[jj])*deno_inver[jj]*scale[i][ii] + bias[i][ii];
                                 }
                             }
                             if (i == (N-1)){
@@ -178,7 +201,9 @@ void LayerNormalize(
                                     xsqrsum[jj] = xsqrsum_2[jj];
                                     xsum[jj] = xsum_2[jj];
                                 }
-                                typename CONFIG_T::mean_t tmp3 = CONFIG_T::embed_dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
+                                xmean[jj] = xsum[jj]*embed_dim_inv;
+                                typename CONFIG_T::mean_t tmp3 = xsqrsum[jj]-xmean[jj]*xmean[jj];
+                                //typename CONFIG_T::mean_t tmp3 = CONFIG_T::embed_dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
                                 int index = tmp3*(CONFIG_T::table_size) >> CONFIG_T::log_table_range;
                                 if (index < 0)   index = 0;
                                 if (index > CONFIG_T::table_size-1) index = CONFIG_T::table_size-1;
@@ -187,7 +212,26 @@ void LayerNormalize(
                         }
                     }
                 }
-    
+    std::ofstream file("layernorm_out_matrix.txt", std::ios::app);
+    if (file.is_open()) {
+        for (int i = 0; i < T; ++i) {
+            for (int ii = 0; ii < tf_T; ++ii) {
+                for (int j = 0; j < N; ++j) {
+                    for (int jj = 0; jj < tf_N; ++jj) {
+                        if (j == N-1) {
+                            file << outval[i][j][ii][jj];
+                        } else {
+                            file << outval[i][j][ii][jj] << " ";
+                        }
+                    }
+                }
+                file << "\n";
+            }
+        }
+        file.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
     store_output:   for (int j=0; j < T; ++j){
                         for (int i=0; i < N; ++i){
                             #pragma HLS PIPELINE

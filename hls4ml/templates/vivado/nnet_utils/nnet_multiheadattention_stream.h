@@ -302,7 +302,53 @@ void MultiHeadAttention(
             }           
         }
     }
-
+    /*
+    std::ofstream qfile("q_matrix.txt");
+    if (qfile.is_open()) {
+        for (int i = 0; i < T; ++i) {
+            for (int ii = 0; ii < tf_T; ++ii) {
+                for (int h = 0; h < CONFIG_T::n_head; ++h) {
+                    for (int j = 0; j < H; ++j) {
+                        for (int jj = 0; jj < tf_H; ++jj) {
+                            if (j == H-1 && jj == tf_H-1 && h == CONFIG_T::n_head-1) {
+                                qfile << Q[h][i][j][ii][jj];
+                            } else {
+                                qfile << Q[h][i][j][ii][jj] << " ";
+                            }
+                        }
+                    }
+                }
+                qfile << "\n";
+            }
+        }
+        qfile.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
+    
+    std::ofstream kfile("k_matrix.txt");
+    if (kfile.is_open()) {
+        for (int i = 0; i < T; ++i) {
+            for (int ii = 0; ii < tf_T; ++ii) {
+                for (int h = 0; h < CONFIG_T::n_head; ++h) {
+                    for (int j = 0; j < H; ++j) {
+                        for (int jj = 0; jj < tf_H; ++jj) {
+                            if (j == H-1 && jj == tf_H-1 && h == CONFIG_T::n_head-1) {
+                                kfile << K[h][i][j][ii][jj];
+                            } else {
+                                kfile << K[h][i][j][ii][jj] << " ";
+                            }
+                        }
+                    }
+                }
+                kfile << "\n";
+            }
+        }
+        kfile.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
+    */
     //print Q
     //for (int h = 0; h < CONFIG_T::n_head; h++) {
     //    for (int i = 0; i < T; i++) {
@@ -332,6 +378,8 @@ void MultiHeadAttention(
     typename CONFIG_T::accum_t tmp_o;
     int total_cycle = ((CONFIG_T::seq_len*CONFIG_T::seq_len)/(tf_T*tf_T)) + 1;
     bool write_QK0[CONFIG_T::n_head][tf_T][tf_T];
+    typename data_T::value_type QK_debug[CONFIG_T::n_head][T][T][tf_T][tf_T];
+    typename CONFIG_T::accum_t row_sum_debug[CONFIG_T::n_head][T][tf_T];
     #pragma HLS ARRAY_PARTITION variable=write_QK0 complete dim=0
     for (int i = 0; i < CONFIG_T::n_head; i++) {
         for (int ii = 0; ii < tf_T; ii++) {
@@ -390,7 +438,7 @@ void MultiHeadAttention(
                         }
                         prev_exp_tmp[h][ii] = lookup_exp<typename CONFIG_T::accum_t, CONFIG_T>(prev_rowmax[h][ii] - new_rowmax[h][ii]);
                         exp_tmp[h][ii] = lookup_exp<typename CONFIG_T::accum_t, CONFIG_T>(rowmax[h][ii] - new_rowmax[h][ii]);
-                        new_rowsum[h][ii] = prev_exp_tmp[h][ii]*prev_rowsum[h][ii] + rowsum[h][ii];
+                        new_rowsum[h][ii] = prev_exp_tmp[h][ii]*prev_rowsum[h][ii] + exp_tmp[h][ii]*rowsum[h][ii];
                     }
                 }
             }
@@ -410,6 +458,13 @@ void MultiHeadAttention(
                                 QK1[h][ii][ii2] += tmp;
                             }
                         }
+                        if (c < T*T) { 
+                            if (write_QK0[h][ii][ii2]){
+                                QK_debug[h][m][n][ii][ii2] = QK0[h][ii][ii2];
+                            } else {
+                                QK_debug[h][m][n][ii][ii2] = QK1[h][ii][ii2];
+                            }
+                        }
                         if (k==H-1) {
                             write_QK0[h][ii][ii2] = !write_QK0[h][ii][ii2];
                         }
@@ -426,7 +481,7 @@ void MultiHeadAttention(
                         typename CONFIG_T::accum_t tmp2 = 0;
                         for (int ii2 = 0; ii2 < tf_T; ii2++) {
                             #pragma HLS UNROLL
-                           tmp += P[h][ii][ii2]*V[h][j][k][ii2][kk];
+                           tmp += exp_tmp[h][ii]*P[h][ii][ii2]*V[h][j][k][ii2][kk];
                         }
                         //initialize O
                         if (j==0){
@@ -437,6 +492,7 @@ void MultiHeadAttention(
                         tmp2 = prev_exp_tmp[h][ii]*tmp_o + tmp;
                         if (c > 0)  {
                             if (j==T-1){
+                                row_sum_debug[h][i][ii] = new_rowsum[h][ii];
                                 inv_row_sum[h][ii] = lookup_inv<typename CONFIG_T::accum_t, CONFIG_T>(new_rowsum[h][ii]);
                                 O[h][i][k][ii][kk] = tmp2*inv_row_sum[h][ii];
                             } else {
@@ -466,19 +522,19 @@ void MultiHeadAttention(
         }   
     }
     //print O
-    for (int h = 0; h < CONFIG_T::n_head; h++) {
-        for (int i = 0; i < T; i++) {
-            for (int ii = 0; ii < tf_T; ii++) {
-                for (int j = 0; j < H; j++) {
-                    for (int jj = 0; jj < tf_H; jj++) {
-                        std::cout << O[h][i][j][ii][jj] << " ";
-                    }
-                }
-                std::cout << std::endl;
-            }
-        }
-        std::cout << "change head" << std::endl;
-    }
+    //for (int h = 0; h < CONFIG_T::n_head; h++) {
+    //    for (int i = 0; i < T; i++) {
+    //        for (int ii = 0; ii < tf_T; ii++) {
+    //            for (int j = 0; j < H; j++) {
+    //                for (int jj = 0; jj < tf_H; jj++) {
+    //                    std::cout << O[h][i][j][ii][jj] << " ";
+    //                }
+    //            }
+    //            std::cout << std::endl;
+    //        }
+    //    }
+    //    std::cout << "change head" << std::endl;
+    //}
     typename CONFIG_T::accum_t tmp_m;                        
     compute_output: 
     for (int i = 0; i < T; i++) {
@@ -520,6 +576,88 @@ void MultiHeadAttention(
     //    }
     //}
 
+    /*
+    std::ofstream qkfile("qk_matrix.txt");
+    if (qkfile.is_open()) {
+        for (int i = 0; i < T; ++i) {
+            for (int ii = 0; ii < tf_T; ++ii) {
+                for (int h = 0; h < CONFIG_T::n_head; ++h) {
+                    for (int j = 0; j < T; ++j) {
+                        for (int jj = 0; jj < tf_T; ++jj) {
+                            if (j == T-1 && jj == tf_T-1 && h == CONFIG_T::n_head-1) {
+                                qkfile << QK_debug[h][i][j][ii][jj];
+                            } else {
+                                qkfile << QK_debug[h][i][j][ii][jj] << " ";
+                            }
+                        }
+                    }
+                }
+                qkfile << "\n";
+            }
+        }
+        qkfile.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
+
+    std::ofstream rowsumfile("rowsum_matrix.txt");
+    if (rowsumfile.is_open()) {
+        for (int h = 0; h < CONFIG_T::n_head; h++) {
+            for (int i = 0; i < T; ++i) {
+                for (int ii = 0; ii < tf_T; ++ii) {
+                    rowsumfile << row_sum_debug[h][i][ii] << "\n";;
+                }
+            }
+        }
+        rowsumfile.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
+
+    std::ofstream ofile("o_matrix.txt");
+    if (ofile.is_open()) {
+        for (int i = 0; i < T; ++i) {
+            for (int ii = 0; ii < tf_T; ++ii) {
+                for (int h = 0; h < CONFIG_T::n_head; ++h) {
+                    for (int j = 0; j < H; ++j) {
+                        for (int jj = 0; jj < tf_H; ++jj) {
+                            if (j == H-1 && jj == tf_H-1 && h == CONFIG_T::n_head-1) {
+                                ofile << O[h][i][j][ii][jj];
+                            } else {
+                                ofile << O[h][i][j][ii][jj] << " ";
+                            }
+                        }
+                    }
+                }
+                ofile << "\n";
+            }
+        }
+        ofile.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
+    */
+    //save output
+    std::ofstream file("selfattn_out.txt", std::ios::app);
+    if (file.is_open()) {
+        for (int i = 0; i < T; ++i) {
+            for (int ii = 0; ii < tf_T; ++ii) {
+                for (int j = 0; j < N; ++j) {
+                    for (int jj = 0; jj < tf_N; ++jj) {
+                        if (j == N-1) {
+                            file << M[i][j][ii][jj];
+                        } else {
+                            file << M[i][j][ii][jj] << " ";
+                        }
+                    }
+                }
+                file << "\n";
+            }
+        }
+        file.close();
+    } else {
+        std::cout << "Unable to open file";
+    }
     res_T res_pack;
     
     write_output:

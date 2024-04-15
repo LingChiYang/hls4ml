@@ -74,10 +74,10 @@ template <class T, size_t SIZE1, size_t SIZE2> void load_weights_from_txt(T w[SI
             }
         }
 
-        if (SIZE1*SIZE2 != i*j) {
+        //if (SIZE1*SIZE2 != i*j) {
             //std::cerr << "ERROR: Expected " << SIZE1*SIZE2 << " values";
-            std::cerr << " but read only " << i*j << " values" << std::endl;
-        }
+            //std::cerr << " but read only " << i*j << " values" << std::endl;
+        //}
     }
 }
 
@@ -116,10 +116,10 @@ template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3> void load_weights_f
             }
         }
 
-        if (SIZE1*SIZE2*SIZE3 != i*j*k) {
+        //if (SIZE1*SIZE2*SIZE3 != i*j*k) {
             //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3 << " values";
-            std::cerr << " but read only " << i*j*k << " values" << std::endl;
-        }
+            //std::cerr << " but read only " << i*j*k << " values" << std::endl;
+        //}
     }
 }
 
@@ -165,10 +165,10 @@ template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3, size_t SIZE4> void 
                 }
             }
     
-            if (SIZE1*SIZE2*SIZE3*SIZE4 != i*j*k*l) {
+            //if (SIZE1*SIZE2*SIZE3*SIZE4 != i*j*k*l) {
                 //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3*SIZE4 << " values";
-                std::cerr << " but read only " << i*j*k*l << " values" << std::endl;
-            }
+                //std::cerr << " but read only " << i*j*k*l << " values" << std::endl;
+            //}
         }
     }
 
@@ -221,10 +221,10 @@ template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3, size_t SIZE4, size_
                     }
                 }
         
-                if (SIZE1*SIZE2*SIZE3*SIZE4*SIZE5 != i*j*k*l*m) {
+                //if (SIZE1*SIZE2*SIZE3*SIZE4*SIZE5 != i*j*k*l*m) {
                     //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3*SIZE4*SIZE5 << " values";
-                    std::cerr << " but read only " << i*j*k*l*m << " values" << std::endl;
-                }
+                    //std::cerr << " but read only " << i*j*k*l*m << " values" << std::endl;
+                //}
             }
         }
 
@@ -284,10 +284,10 @@ template <class T, size_t SIZE1, size_t SIZE2, size_t SIZE3, size_t SIZE4, size_
                         }
                     }
             
-                    if (SIZE1*SIZE2*SIZE3*SIZE4*SIZE5*SIZE6 != i*j*k*l*m*n) {
+                    //if (SIZE1*SIZE2*SIZE3*SIZE4*SIZE5*SIZE6 != i*j*k*l*m*n) {
                         //std::cerr << "ERROR: Expected " << SIZE1*SIZE2*SIZE3*SIZE4*SIZE5*SIZE6 << " values";
-                        std::cerr << " but read only " << i*j*k*l*m*n << " values" << std::endl;
-                    }
+                        //std::cerr << " but read only " << i*j*k*l*m*n << " values" << std::endl;
+                    //}
                 }
             }
         

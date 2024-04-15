@@ -46,7 +46,7 @@ ffn_template = """struct config{index} : nnet::ffn_config {{
 layernorm_template = """struct config{index} : nnet::layernorm_config {{
     static const unsigned seq_len = {seq_len};
     static const unsigned embed_dim = {embed_dim};
-    static const unsigned table_size = 2048;
+    static const unsigned table_size = 2048*2048;
     static const unsigned log_table_range = 11;
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
     typedef {bias_t.name} mean_t;   
