@@ -15,7 +15,7 @@ mha_template = """struct config{index} : nnet::mha_config {{
     static const unsigned attn_ram_style = nnet::block;
     static const unsigned out_ram_style = nnet::block;
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
-    static const unsigned table_size = 2048*2048;
+    static const unsigned table_size = {table_size};
     typedef {out_proj_bias_t.name} out_proj_bias_t;
     typedef {out_proj_weight_t.name} out_proj_weight_t;
     typedef {in_proj_bias_t.name} in_proj_bias_t;
@@ -46,8 +46,8 @@ ffn_template = """struct config{index} : nnet::ffn_config {{
 layernorm_template = """struct config{index} : nnet::layernorm_config {{
     static const unsigned seq_len = {seq_len};
     static const unsigned embed_dim = {embed_dim};
-    static const unsigned table_size = 2048*2048;
-    static const unsigned log_table_range = 11;
+    static const unsigned table_size = {table_size};
+    static const unsigned log_table_range = {table_range};
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
     typedef {bias_t.name} mean_t;   
     typedef {bias_t.name} bias_t;

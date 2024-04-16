@@ -204,7 +204,7 @@ void LayerNormalize(
                                 xmean[jj] = xsum[jj]*embed_dim_inv;
                                 typename CONFIG_T::mean_t tmp3 = xsqrsum[jj]-xmean[jj]*xmean[jj];
                                 //typename CONFIG_T::mean_t tmp3 = CONFIG_T::embed_dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
-                                int index = tmp3*(CONFIG_T::table_size) >> CONFIG_T::log_table_range;
+                                int index = tmp3*(CONFIG_T::table_size >> CONFIG_T::log_table_range);
                                 if (index < 0)   index = 0;
                                 if (index > CONFIG_T::table_size-1) index = CONFIG_T::table_size-1;
                                 deno_inver[jj] = (typename CONFIG_T::table_t) invert_sqr_table[index];

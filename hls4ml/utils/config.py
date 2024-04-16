@@ -107,58 +107,7 @@ def _get_precision_from_quantizer(quantizer):
     else:
         return hls4ml.model.types.IntegerPrecisionType(width=integer, signed=signed)
 
-
-def config_from_keras_model(
-    model, granularity='model', backend=None, default_precision='fixed<16,6>', default_reuse_factor=1
-):
-    """Create an HLS conversion config given the Keras model.
-
-    This function serves as the initial step in creating the custom conversion configuration.
-    Users are advised to inspect the returned object to tweak the conversion configuration.
-    The return object can be passed as `hls_config` parameter to `convert_from_keras_model`.
-
-    Args:
-        model: Keras model
-        granularity (str, optional): Granularity of the created config. Defaults to 'model'.
-            Can be set to 'model', 'type' and 'name'.
-
-            Granularity can be used to generate a more verbose config that can be fine-tuned.
-            The default granularity ('model') will generate config keys that apply to the whole
-            model, so changes to the keys will affect the entire model. 'type' granularity will
-            generate config keys that affect all layers of a given type, while the 'name' granularity
-            will generate config keys for every layer separately, allowing for highly specific
-            configuration tweaks.
-        backend(str, optional): Name of the backend to use
-        default_precision (str, optional): Default precision to use. Defaults to 'fixed<16,6>'.
-        default_reuse_factor (int, optional): Default reuse factor. Defaults to 1.
-
-    Raises:
-        Exception: If Keras model has layers not supported by hls4ml.
-
-    Returns:
-        [dict]: The created config.
-    """
-    if granularity.lower() not in ['model', 'type', 'name']:
-        raise Exception(
-            f'Invalid configuration granularity specified, expected "model", "type" or "name" got "{granularity}"'
-        )
-
-    if backend is not None:
-        backend = hls4ml.backends.get_backend(backend)
-
-    # This is a list of dictionaries to hold all the layer info we need to generate HLS
-    layer_list = []
-
-    if isinstance(model, dict):
-        model_arch = model
-    else:
-        model_arch = json.loads(model.to_json())
-
-    reader = hls4ml.converters.KerasModelReader(model)
-
-    layer_list, _, _, _ = hls4ml.converters.parse_keras_model(model_arch, reader)
-
-    def make_layer_config(layer):
+def make_layer_config(layer, backend, default_precision, default_reuse_factor, default_tiling_factor):
         cls_name = layer['class_name']
         if 'config' in layer.keys():
             if 'activation' in layer['config'].keys():
@@ -221,6 +170,7 @@ def config_from_keras_model(
             layer_config['Precision']['norm'] = 'ap_ufixed<14,4,AP_TRN,AP_SAT>'
 
             layer_config['ReuseFactor'] = default_reuse_factor
+            layer_config['TilingFactor'] = default_tiling_factor
 
         elif layer['class_name'] == 'Input':
             dtype = layer['config']['dtype']
@@ -231,6 +181,57 @@ def config_from_keras_model(
             # elif bool, q[u]int, ...
 
         return layer_config
+
+def config_from_keras_model(
+    model, granularity='model', backend=None, default_precision='fixed<16,6>', default_reuse_factor=1
+):
+    """Create an HLS conversion config given the Keras model.
+
+    This function serves as the initial step in creating the custom conversion configuration.
+    Users are advised to inspect the returned object to tweak the conversion configuration.
+    The return object can be passed as `hls_config` parameter to `convert_from_keras_model`.
+
+    Args:
+        model: Keras model
+        granularity (str, optional): Granularity of the created config. Defaults to 'model'.
+            Can be set to 'model', 'type' and 'name'.
+
+            Granularity can be used to generate a more verbose config that can be fine-tuned.
+            The default granularity ('model') will generate config keys that apply to the whole
+            model, so changes to the keys will affect the entire model. 'type' granularity will
+            generate config keys that affect all layers of a given type, while the 'name' granularity
+            will generate config keys for every layer separately, allowing for highly specific
+            configuration tweaks.
+        backend(str, optional): Name of the backend to use
+        default_precision (str, optional): Default precision to use. Defaults to 'fixed<16,6>'.
+        default_reuse_factor (int, optional): Default reuse factor. Defaults to 1.
+
+    Raises:
+        Exception: If Keras model has layers not supported by hls4ml.
+
+    Returns:
+        [dict]: The created config.
+    """
+    if granularity.lower() not in ['model', 'type', 'name']:
+        raise Exception(
+            f'Invalid configuration granularity specified, expected "model", "type" or "name" got "{granularity}"'
+        )
+
+    if backend is not None:
+        backend = hls4ml.backends.get_backend(backend)
+
+    # This is a list of dictionaries to hold all the layer info we need to generate HLS
+    layer_list = []
+
+    if isinstance(model, dict):
+        model_arch = model
+    else:
+        model_arch = json.loads(model.to_json())
+
+    reader = hls4ml.converters.KerasModelReader(model)
+
+    layer_list, _, _, _ = hls4ml.converters.parse_keras_model(model_arch, reader)
+
 
     config = {}
 
@@ -268,6 +269,7 @@ def config_from_pytorch_model(
     model,
     granularity='model',
     backend=None,
+    input_shapes=None,
     default_precision='ap_fixed<16,6>',
     default_reuse_factor=1,
     default_tiling_factor=[1,1,1],
@@ -319,6 +321,250 @@ def config_from_pytorch_model(
 
     config['Model'] = model_config
 
+    #add by linchi
+    if backend is not None:
+        backend = hls4ml.backends.get_backend(backend)
+    layer_list = []
+    reader = None
+    # dict of layer objects in non-traced form for access lateron
+    children = {c[0]: c[1] for c in model.named_children()}
+
+    from torch.fx import symbolic_trace
+    traced_model = symbolic_trace(model)
+    # Define layers to skip for conversion to HLS
+    skip_layers = ['Dropout', 'Sequential']
+
+    # All supported layers
+    from hls4ml.converters.pytorch_to_hls import get_supported_pytorch_layers
+    supported_layers = get_supported_pytorch_layers() + skip_layers
+
+    # Map inputs of skipped and split (activation) layers
+    inputs_map = {}
+
+    input_layers = []
+
+    # Output shape tracking
+    output_shapes = {}
+    output_shape = None
+
+    # Loop through layers
+    print('TTTTTTTTTopology:')
+    layer_counter = 0
+
+    n_inputs = 0
+
+    for node in traced_model.graph.nodes:
+        if node.op == 'call_module':
+            # modules that are part of a torch.nn.Sequential with name 'name' have target names 'name.x',
+            # where x is an integer numbering the elements of the Sequential
+            if '.' in node.target:
+                fqn_path = node.target.split('.')
+                sub_children = dict(children[fqn_path[0]].named_children())
+                for name in fqn_path[1:-1]:
+                    sub_children = dict(sub_children[name].named_children())
+                sub_children[fqn_path[-1]]
+                class_object = sub_children[fqn_path[-1]]
+            else:
+                class_object = children[node.target]
+
+            pytorch_class = class_object.__class__.__name__
+            print(f'Layer {layer_counter}: {pytorch_class}')
+            if pytorch_class not in supported_layers:
+                raise Exception(f'Unsupported layer {pytorch_class}')
+
+            if layer_counter != 0:
+                input_shapes = [output_shape]  # In case there are multiple inputs
+
+            layer_name = node.name
+
+            # Handle skipped layers
+            if pytorch_class in skip_layers:
+                if pytorch_class == 'Sequential':  # Ignore the mother module's class name
+                    continue
+
+                # Assuming only one input
+                parent_input = [str(i) for i in node.args][0]
+                inputs_map[layer_name] = inputs_map.get(parent_input, parent_input)
+
+                output_shapes[layer_name] = input_shapes[0]
+
+                continue
+
+            # Increment the layer counter after initial screenings
+            if pytorch_class in supported_layers:
+                layer_counter += 1
+
+            # parse info from class object
+            input_names = [inputs_map.get(str(i), str(i)) for i in node.args]
+            input_shapes = [output_shapes[str(i)] for i in node.args]
+
+            # for Conv layers
+            if 'Conv' in pytorch_class:
+                if not class_object.padding_mode == 'zeros':
+                    raise Exception('Padding modes other than "zeros" not implemented yet')
+                if not class_object.groups == 1:
+                    raise Exception('Non-default options for groups not implemented yet')
+
+            # Process the layer
+            from hls4ml.converters.pytorch_to_hls import layer_handlers
+            layer, output_shape = layer_handlers[pytorch_class](
+                pytorch_class, layer_name, input_names, input_shapes, node, class_object, reader, config
+            )
+
+            print(
+                'Layer name: {}, layer type: {}, input shape: {}'.format(
+                    layer['name'],
+                    layer['class_name'],
+                    input_shapes,
+                )
+            )
+            layer_list.append(layer)
+
+            assert output_shape is not None
+            output_shapes[layer['name']] = output_shape
+
+            layer_counter += 1
+
+        if node.op == 'placeholder':
+            # 'placeholder' indicates an input layer. Multiple inputs are supported
+
+            input_layer = {}
+            input_layer['name'] = node.name
+            input_layer['class_name'] = 'InputLayer'
+            input_layer['input_shape'] = list(input_shapes[n_inputs][1:])
+            layer_list.insert(n_inputs, input_layer)
+
+            output_shapes[input_layer['name']] = list(input_shapes[n_inputs])
+            input_layers.append(input_layer['name'])
+            n_inputs += 1
+
+            layer_counter += 1
+
+        if node.op == 'call_function':
+            # Function calls in the graph have to be transformed to layers known to hls4ml
+
+            # operations that appear repeatedly have '_n' appended to their name for the nth repetition
+            operation = node.name
+            if node.name.split('_')[-1].isdigit():
+                operation = '_'.join(node.name.split('_')[:-1])
+
+            if operation in layer_name_map:
+                operation = layer_name_map[operation]
+
+            # only a limited number of functions are supported
+            if operation not in supported_layers:
+                raise Exception(f'Unsupported function {operation}')
+            if operation == 'PReLU' or operation == 'batch_norm' or operation == 'conv1d' or operation == 'conv2d':
+                raise Exception(
+                    f'Function {operation} cannot be parsed as torch.nn.functional. Use the torch.nn implementation instead'
+                )
+
+            layer_name = node.name
+
+            layer_counter += 1
+
+            input_names = [inputs_map.get(str(i), str(i)) for i in node.all_input_nodes]
+            input_shapes = [list(output_shapes[str(i)]) for i in input_names]
+
+            # Process the layer
+            layer, output_shape = layer_handlers[operation](
+                operation, layer_name, input_names, input_shapes, node, None, reader, config
+            )
+
+            print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
+            layer_list.append(layer)
+
+            assert output_shape is not None
+            output_shapes[layer['name']] = output_shape
+
+        if node.op == 'get_attr':
+            # Deals with tensors that are member variables of the model class
+            # We insert these tensors are input layer nodes into the hls4ML model graph
+            if '.' not in node.target:
+                obj = getattr(model, node.name)
+            else:
+                obj = getattr(children[node.target.split('.')[0], node.name])
+
+            input_layer = {}
+            input_layer['name'] = node.name
+            input_layer['class_name'] = 'InputLayer'
+            input_layer['input_shape'] = [None] + list(obj.size())
+            layer_list.insert(n_inputs, input_layer)
+
+            output_shapes[input_layer['name']] = [None] + list(obj.size())
+            input_layers.append(input_layer['name'])
+            n_inputs += 1
+
+            layer_counter += 1
+
+        if node.op == 'call_method':
+            # Method calls in the graph have to be transformed to layers known to hls4ml
+
+            # operations that appear repeatedly have '_n' appended to their name for the nth repetition
+            operation = node.name
+            if node.name.split('_')[-1].isdigit():
+                operation = '_'.join(node.name.split('_')[:-1])
+
+            if operation in layer_name_map:
+                operation = layer_name_map[operation]
+
+            # only a limited number of functions are supported
+            if operation not in supported_layers:
+                raise Exception(f'Unsupported function {operation}')
+
+            layer_name = node.name
+
+            layer_counter += 1
+
+            input_names = [inputs_map.get(str(i), str(i)) for i in node.all_input_nodes]
+
+            # Process the layer
+            input_shapes = [list(output_shapes[str(i)]) for i in input_names]
+
+            layer, output_shape = layer_handlers[operation](
+                operation, layer_name, input_names, input_shapes, node, None, reader, config
+            )
+
+            print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
+            layer_list.append(layer)
+
+            assert output_shape is not None
+            output_shapes[layer['name']] = output_shape
+
+    if len(input_layers) == 0:
+        input_layers = None
+    
+    is_any_layer_group = True
+
+    while is_any_layer_group:
+        is_any_layer_group = False
+        for layer in layer_list:
+            if layer['class_name'] == 'LayerGroup':
+                is_any_layer_group = True
+                break
+        layer = layer_list.pop(0)
+        if layer['class_name'] == 'LayerGroup':
+            layer_list.extend(layer['layer_list'])
+        else:
+            layer_list.append(layer)
+
+    if granularity.lower() == 'type':
+        type_config = {}
+        for layer in layer_list:
+            if layer['class_name'] in type_config:
+                continue
+            layer_config = make_layer_config(layer, backend, default_precision, default_reuse_factor, default_tiling_factor)
+            type_config[layer['class_name']] = layer_config
+
+        config['LayerType'] = type_config
+
+    elif granularity.lower() == 'name':
+        name_config = {}
+        for layer in layer_list:
+            layer_config = make_layer_config(layer, backend, default_precision, default_reuse_factor, default_tiling_factor)
+            name_config[layer['name']] = layer_config
+
+        config['LayerName'] = name_config
     return config
 
 

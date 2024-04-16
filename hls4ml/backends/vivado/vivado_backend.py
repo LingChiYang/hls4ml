@@ -67,7 +67,7 @@ class VivadoBackend(FPGABackend):
 
         for layer in transformer_layers:
             attrs = self.attribute_map.get(layer, [])
-            attrs.append(ConfigurableAttribute('tiling_factor', default=[1, 1, 1]))
+            attrs.append(ConfigurableAttribute('tiling_factor', value_type=list, default=[1, 1, 1]))
             attrs.append(ConfigurableAttribute('table_size', default=1024))
             attrs.append(ConfigurableAttribute('table_range', default=1))
             attrs.append(TypeAttribute('table', default=FixedPrecisionType(18, 8)))
