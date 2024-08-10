@@ -377,7 +377,7 @@ class TensorVariable(Variable):
 
     def size_cpp(self):
         # TODO get rid of size_cpp() (and dim_names)
-        return '*'.join([str(k) for k in self.dim_names])
+        return '*'.join([str(k) for k in self.shape])
 
 
 class InplaceTensorVariable(TensorVariable):

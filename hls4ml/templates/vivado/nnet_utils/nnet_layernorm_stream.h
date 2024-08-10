@@ -25,7 +25,7 @@
 #include "hls_stream.h"
 #include <math.h>
 #include <iostream>
-
+#include <iomanip>
 #include "hls_math.h"
 
 namespace nnet {
@@ -37,53 +37,55 @@ struct layernorm_config {
     static constexpr double table_range = 1;
     static const unsigned log_table_range = 10;
     static constexpr unsigned tiling_factor[3] = {1,1,1};
-    typedef model_default_t bias_t;
-    typedef model_default_t scale_t;
-    typedef model_default_t table_t;
 };
 
 template<typename CONFIG_T, int N_TABLE, int dim>
-void init_n_invert_sqr_table(typename CONFIG_T::table_t table_out[N_TABLE])
+void init_n_invert_sqr_table(typename CONFIG_T::var_table_t table_out[N_TABLE])
 {
     //float inv_range = CONFIG_T::table_range;
     // Inversion function:
     //   result = 1/sqrt(x)
     for (int ii = 0; ii < N_TABLE; ii++) {
         // First, convert from table index to X-value (signed 8-bit, range 0 to +0.01)
-        float in_val = ii/float(N_TABLE >> CONFIG_T::log_table_range);
+        float in_val;
+        if (N_TABLE > CONFIG_T::table_range) {
+            in_val = ii/float(N_TABLE / CONFIG_T::table_range);
+        } else {
+            in_val = ii*float(CONFIG_T::table_range / N_TABLE);
+        }
+        //float in_val = ii/float(N_TABLE / CONFIG_T::table_range);
         // Next, compute lookup table function
         if (in_val > 0.0) table_out[ii] = 1.0/sqrt(in_val);
-        else table_out[ii] = 0.0;
+        else table_out[ii] = 1024; // a large number
     }
-    //print all table value
-    //for (int i = 0; i < N_TABLE; i++){
-    //    std::cout << "table_out[" << i << "]: " << table_out[i] << std::endl;
-    //}
 }
 
 template<class data_T, class res_T, typename CONFIG_T>
 void LayerNormalize(
     hls::stream<data_T>    &data,
     hls::stream<res_T>     &res,
-    typename CONFIG_T::scale_t  scale[CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]],
-    typename CONFIG_T::bias_t   bias[CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[1]]
+    typename CONFIG_T::scale_t  scale[CONFIG_T::embed_dim],
+    typename CONFIG_T::bias_t   bias[CONFIG_T::embed_dim]
 )
 {
-    typename data_T::value_type in_val[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    typename res_T::value_type outval[CONFIG_T::seq_len/CONFIG_T::tiling_factor[0]][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
-    #pragma HLS ARRAY_PARTITION variable=scale complete dim=2
-    #pragma HLS ARRAY_PARTITION variable=bias complete dim=2
-    #pragma HLS ARRAY_PARTITION variable=in_val complete dim=3
-    #pragma HLS ARRAY_PARTITION variable=in_val complete dim=4
-    #pragma HLS ARRAY_PARTITION variable=outval complete dim=4
-    #pragma HLS ARRAY_PARTITION variable=outval complete dim=3
+    typename data_T::value_type in_val[CONFIG_T::seq_len*CONFIG_T::embed_dim];
+    typename res_T::value_type outval[CONFIG_T::seq_len*CONFIG_T::embed_dim];
+    //#pragma HLS ARRAY_PARTITION variable=scale complete dim=2
+    //#pragma HLS ARRAY_PARTITION variable=bias complete dim=2
+    //#pragma HLS ARRAY_PARTITION variable=in_val complete dim=3
+    //#pragma HLS ARRAY_PARTITION variable=in_val complete dim=4
+    //#pragma HLS ARRAY_PARTITION variable=outval complete dim=4
+    //#pragma HLS ARRAY_PARTITION variable=outval complete dim=3
+    #pragma DATAFLOW
+    #pragma HLS BIND_STORAGE variable=in_val type=ram_s2p impl=bram
+    #pragma HLS BIND_STORAGE variable=outval type=ram_s2p impl=bram
 
     #ifdef __HLS_SYN__
         bool initialized = false;
-        typename CONFIG_T::table_t invert_sqr_table[CONFIG_T::table_size];
+        typename CONFIG_T::var_table_t invert_sqr_table[CONFIG_T::table_size];
     #else
         static bool initialized = false;
-        static typename CONFIG_T::table_t invert_sqr_table[CONFIG_T::table_size];
+        static typename CONFIG_T::var_table_t invert_sqr_table[CONFIG_T::table_size];
     #endif
     if (!initialized) {
         init_n_invert_sqr_table<CONFIG_T, CONFIG_T::table_size, CONFIG_T::embed_dim>(invert_sqr_table);
@@ -94,59 +96,31 @@ void LayerNormalize(
     const unsigned int tf_N = CONFIG_T::tiling_factor[1];
     const unsigned int T = CONFIG_T::seq_len/tf_T;
     const unsigned int N = CONFIG_T::embed_dim/tf_N;
-
-    data_T data_pack;
-    store_input: 
-    for (int j=0; j < T; ++j){
-        for (int i=0; i < N; ++i){
-            #pragma HLS PIPELINE
-            for (int jj=0; jj < tf_T; ++jj){
-                #pragma HLS UNROLL
-                for (int ii=0; ii < tf_N; ++ii){
-                    #pragma HLS UNROLL
-                    if (jj == 0 && ii == 0) {
-                        data_pack = data.read();
-                    }
-                    in_val[j][i][jj][ii] = data_pack[jj*tf_N+ii];
-                }
-            }
-        }
-    }
-    std::ofstream file2("layernorm_in_matrix.txt", std::ios::app);
-    if (file2.is_open()) {
-        for (int i = 0; i < T; ++i) {
-            for (int ii = 0; ii < tf_T; ++ii) {
-                for (int j = 0; j < N; ++j) {
-                    for (int jj = 0; jj < tf_N; ++jj) {
-                        if (j == N-1) {
-                            file2 << in_val[i][j][ii][jj];
-                        } else {
-                            file2 << in_val[i][j][ii][jj] << " ";
-                        }
-                    }
-                }
-                file2 << "\n";
-            }
-        }
-        file2.close();
-    } else {
-        std::cout << "Unable to open file";
-    }
-    const typename CONFIG_T::mean_t embed_dim_inv = 1.0/CONFIG_T::embed_dim;
-    typename CONFIG_T::mean_t xsqrsum_1[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsum_1[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t prev_xsum_1[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsqrsum_2[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsum_2[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t prev_xsum_2[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsum[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xsqrsum[CONFIG_T::tiling_factor[0]];
-    typename CONFIG_T::mean_t xmean[CONFIG_T::tiling_factor[0]];
+    #pragma HLS ARRAY_RESHAPE variable=in_val cyclic factor=tf_N*tf_T dim=1
+    #pragma HLS ARRAY_RESHAPE variable=outval cyclic factor=tf_N*tf_T dim=1
+    #pragma HLS ARRAY_RESHAPE variable=scale cyclic factor=tf_N dim=1
+    #pragma HLS ARRAY_RESHAPE variable=bias cyclic factor=tf_N dim=1
+    constexpr float dim_inv = 1.0/CONFIG_T::embed_dim;
+    constexpr int int_bits_embed_dim = ceil(log2(dim_inv));
+    const ap_ufixed<18,int_bits_embed_dim,AP_RND_CONV> embed_dim_inv = dim_inv;
+    //std::cout << "embed_dim_inv = " << embed_dim_inv << std::endl;
+    typename CONFIG_T::accum_t xsqrsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::accum_t xsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::accum_t prev_xsum_1[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::accum_t xsqrsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::accum_t xsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::accum_t prev_xsum_2[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::accum_t xsum[CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::accum_t xsqrsum[CONFIG_T::tiling_factor[0]];
+    typename data_T::value_type xmean[CONFIG_T::tiling_factor[0]];
+    typename data_T::value_type row_buffer[CONFIG_T::embed_dim*CONFIG_T::tiling_factor[0]];
+    //#pragma HLS STREAM variable=row_buffer depth=2 type=pipo
     bool write_buffer1[tf_T];
-    typename CONFIG_T::table_t deno_inver[tf_T];
+    typename CONFIG_T::var_table_t deno_inver[tf_T];
     for (int jj=0; jj < tf_T; ++jj){
         write_buffer1[jj] = true;
     }
+    int index;
     #pragma HLS ARRAY_PARTITION variable=xsqrsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsum_1 complete dim=1
     #pragma HLS ARRAY_PARTITION variable=xsqrsum_2 complete dim=1
@@ -155,9 +129,26 @@ void LayerNormalize(
     #pragma HLS ARRAY_PARTITION variable=xsum complete dim=1
     #pragma HLS ARRAY_PARTITION variable=deno_inver complete dim=1
     #pragma HLS ARRAY_PARTITION variable=write_buffer1 complete dim=1
+    //#pragma HLS ARRAY_PARTITION variable=row_buffer complete dim=2
+    //#pragma HLS ARRAY_PARTITION variable=row_buffer complete dim=3
+    #pragma HLS ARRAY_RESHAPE variable=row_buffer cyclic factor=tf_N*tf_T dim=1
+    typename data_T::value_type tmp;
+    data_T data_pack;
+    res_T res_pack;
+    typename CONFIG_T::accum_t xsum_debug[CONFIG_T::seq_len];
+    typename CONFIG_T::accum_t xvar_debug[CONFIG_T::seq_len];
+    typename res_T::value_type res_debug[T][N][tf_T][tf_N];
+    typename data_T::value_type data_debug[T][N][tf_T][tf_N];
+
+    typename CONFIG_T::accum_t var_in_debug[CONFIG_T::seq_len][CONFIG_T::tiling_factor[0]];
+    typename CONFIG_T::var_table_t var_out_debug[CONFIG_T::seq_len][CONFIG_T::tiling_factor[0]];
+    //typename CONFIG_T::sum_sqr_t sqr_debug[CONFIG_T::seq_len][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
     layerNorm:  for (int j=0; j <= T; ++j){
                     for (int i=0; i < N; ++i){
                         #pragma HLS PIPELINE
+                        if (j < T) {
+                            data_pack = data.read();
+                        }
                         for (int jj=0; jj < tf_T; ++jj){
                             #pragma HLS UNROLL
                             if (i == 0){
@@ -172,8 +163,10 @@ void LayerNormalize(
                             for (int ii=0; ii < tf_N; ++ii){
                                 #pragma HLS UNROLL
                                 if (j < T){
-                                    typename CONFIG_T::mean_t tmp = in_val[j][i][jj][ii];
-                                    typename CONFIG_T::mean_t tmp2 = tmp*tmp*embed_dim_inv;
+                                    tmp = data_pack[jj*tf_N+ii];
+                                    data_debug[j][i][jj][ii] = tmp;
+                                    typename CONFIG_T::accum_t tmp2 = tmp*tmp*embed_dim_inv;
+                                    //sqr_debug[j][i][jj][ii] = tmp2;
                                     if (write_buffer1[jj] == true){
                                         xsum_1[jj] = xsum_1[jj] + tmp;
                                         xsqrsum_1[jj] = xsqrsum_1[jj] + tmp2;//(tmp - xsum_1[jj])*(tmp - prev_xsum_1[jj]);
@@ -188,8 +181,15 @@ void LayerNormalize(
                                     } else {
                                         xsum[jj] = xsum_2[jj];
                                     }
+                                    //std::cout << "xsum[" << jj << "] = " << xsum[jj] << std::endl;
                                     xmean[jj] = xsum[jj]*embed_dim_inv;
-                                    outval[j-1][i][jj][ii] = (in_val[j-1][i][jj][ii] - xmean[jj])*deno_inver[jj]*scale[i][ii] + bias[i][ii];
+                                    //if (j < 6) {
+                                    //    std::cout << "row_buf = " << (row_buffer[i*tf_T*tf_N + ii*tf_T + jj] - xmean[jj])*deno_inver[jj] << std::endl;
+                                    //} 
+                                    res_pack[jj*tf_N+ii] = (row_buffer[i*tf_T*tf_N + ii*tf_T + jj] - xmean[jj])*deno_inver[jj]*scale[i*tf_N + ii] + bias[i*tf_N + ii];
+                                }
+                                if (j < T){
+                                    row_buffer[i*tf_T*tf_N + ii*tf_T + jj] = tmp;
                                 }
                             }
                             if (i == (N-1)){
@@ -202,36 +202,205 @@ void LayerNormalize(
                                     xsum[jj] = xsum_2[jj];
                                 }
                                 xmean[jj] = xsum[jj]*embed_dim_inv;
-                                typename CONFIG_T::mean_t tmp3 = xsqrsum[jj]-xmean[jj]*xmean[jj];
+                                xsum_debug[j*tf_T + jj] = xmean[jj];
+                                typename CONFIG_T::accum_t tmp3 = xsqrsum[jj]-xmean[jj]*xmean[jj];
+                                xvar_debug[j*tf_T + jj] = xsqrsum[jj];
                                 //typename CONFIG_T::mean_t tmp3 = CONFIG_T::embed_dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
-                                int index = tmp3*(CONFIG_T::table_size >> CONFIG_T::log_table_range);
+                                //var_in_debug[j][jj] = tmp3;
+                                //if (j < 6) {
+                                //    std::cout << "tmp3 = " << tmp3 << std::endl;
+                                //}
+                                if (CONFIG_T::table_range > CONFIG_T::table_size) {
+                                    index = (tmp3*CONFIG_T::table_size)/CONFIG_T::table_range;
+                                } else {
+                                    index = tmp3*(CONFIG_T::table_size / CONFIG_T::table_range);
+                                }
                                 if (index < 0)   index = 0;
                                 if (index > CONFIG_T::table_size-1) index = CONFIG_T::table_size-1;
-                                deno_inver[jj] = (typename CONFIG_T::table_t) invert_sqr_table[index];
+                                deno_inver[jj] = (typename CONFIG_T::var_table_t) invert_sqr_table[index];
+                                //if (j < 6) {
+                                //    std::cout << "deno_inver[" << jj << "] = " << deno_inver[jj] << std::endl;
+                                //}
+                                var_out_debug[j][jj] = deno_inver[jj];
                             }
                         }
-                    }
-                }
-    std::ofstream file("layernorm_out_matrix.txt", std::ios::app);
-    if (file.is_open()) {
-        for (int i = 0; i < T; ++i) {
-            for (int ii = 0; ii < tf_T; ++ii) {
-                for (int j = 0; j < N; ++j) {
-                    for (int jj = 0; jj < tf_N; ++jj) {
-                        if (j == N-1) {
-                            file << outval[i][j][ii][jj];
-                        } else {
-                            file << outval[i][j][ii][jj] << " ";
+                        if (j > 0){
+                            for (int jj=0; jj < tf_T; ++jj){
+                                for (int ii=0; ii < tf_N; ++ii){
+                                    res_debug[j-1][i][jj][ii] = res_pack[jj*tf_N+ii];
+                                }
+                            }
+                        }
+                        if (j > 0){
+                           res.write(res_pack);
                         }
                     }
                 }
-                file << "\n";
+    std::cout << "lndata_debug = " << std::endl;
+    for (int i = 0; i < T; i++) {
+        for (int ii = 0; ii < tf_T; ii++) {
+            for (int j = 0; j < N; j++) {
+                for (int jj = 0; jj < tf_N; jj++) {
+                    std::cout << data_debug[i][j][ii][jj] << " ";
+                }
+            }
+            std::cout << std::endl;
+        }
+    }
+    //std::cout << "xsum_debug = " << std::endl;
+    //for (int i = 0; i < CONFIG_T::seq_len; i++) {
+    //    std::cout << xsum_debug[i] << " ";
+    //}
+    //std::cout << std::endl;
+    //save var_out_debug to file
+
+
+
+
+    /*
+    std::ofstream var_out_debug_file;
+    var_out_debug_file.open("var_out_debug.txt", std::ios_base::app);
+    var_out_debug_file << std::fixed << std::setprecision(15);
+    for (int j=0; j < T; ++j){
+        for (int jj=0; jj < tf_T; ++jj){
+            if (j == T-1){
+                var_out_debug_file << var_out_debug[j][jj];
+            } else {
+                var_out_debug_file << var_out_debug[j][jj] << " ";
             }
         }
-        file.close();
-    } else {
-        std::cout << "Unable to open file";
     }
+    var_out_debug_file << std::endl;
+    var_out_debug_file.close();
+    //save var_debug
+    std::ofstream xvar_debug_file;
+    xvar_debug_file.open("xvar_debug.txt", std::ios_base::app);
+    xvar_debug_file << std::fixed << std::setprecision(15);
+    for (int i = 0; i < CONFIG_T::seq_len; i++) {
+        if (i == CONFIG_T::seq_len-1){
+            xvar_debug_file << xvar_debug[i];
+        } else {
+            xvar_debug_file << xvar_debug[i] << " ";
+        }
+    }
+    xvar_debug_file << std::endl;
+    xvar_debug_file.close();
+    //save sum_debug
+    std::ofstream xsum_debug_file;
+    xsum_debug_file.open("xsum_debug.txt", std::ios_base::app);
+    xsum_debug_file << std::fixed << std::setprecision(15);
+    for (int i = 0; i < CONFIG_T::seq_len; i++) {
+        if (i == CONFIG_T::seq_len-1){
+            xsum_debug_file << xsum_debug[i];
+        } else {
+            xsum_debug_file << xsum_debug[i] << " ";
+        }
+    }
+    xsum_debug_file << std::endl;
+    xsum_debug_file.close();
+    */
+    std::ofstream ln_res_debug_file;
+    ln_res_debug_file.open("ln_res_debug.txt", std::ios_base::app);
+    ln_res_debug_file << std::fixed << std::setprecision(15);
+    for (int i = 0; i < T; i++) {
+        for (int ii = 0; ii < tf_T; ii++) {
+            for (int j = 0; j < N; j++) {
+                for (int jj = 0; jj < tf_N; jj++) {
+                    if (j == N-1 && jj == tf_N-1){
+                        ln_res_debug_file << res_debug[i][j][ii][jj];
+                    } else {
+                        ln_res_debug_file << res_debug[i][j][ii][jj] << " ";
+                    }
+                }
+            }
+            ln_res_debug_file << std::endl;
+        }
+    }
+    ln_res_debug_file << std::endl;
+    ln_res_debug_file.close();
+
+    std::ofstream ln_in_debug_file;
+    ln_in_debug_file.open("ln_in_debug.txt", std::ios_base::app);
+    ln_in_debug_file << std::fixed << std::setprecision(15);
+    for (int i = 0; i < T; i++) {
+        for (int ii = 0; ii < tf_T; ii++) {
+            for (int j = 0; j < N; j++) {
+                for (int jj = 0; jj < tf_N; jj++) {
+                    if (j == N-1 && jj == tf_N-1){
+                        ln_in_debug_file << data_debug[i][j][ii][jj];
+                    } else {
+                        ln_in_debug_file << data_debug[i][j][ii][jj] << " ";
+                    }
+                }
+            }
+            ln_in_debug_file << std::endl;
+        }
+    }
+    ln_in_debug_file << std::endl;
+    ln_in_debug_file.close();
+    
+
+
+
+    //std::cout << "lnres_debug = " << std::endl;
+    //for (int i = 0; i < T; i++) {
+    //    for (int ii = 0; ii < tf_T; ii++) {
+    //        for (int j = 0; j < N; j++) {
+    //            for (int jj = 0; jj < tf_N; jj++) {
+    //                std::cout << res_debug[i][j][ii][jj] << " ";
+    //            }
+    //        }
+    //        std::cout << std::endl;
+    //    }
+    //}
+    //save var_in_debug and var_out_debug to file
+    /*
+    std::ofstream var_in_debug_file;
+    var_in_debug_file.open("var_in_debug.txt", std::ios_base::app);
+    for (int j=0; j < T; ++j){
+        for (int jj=0; jj < tf_T; ++jj){
+            if (j == T-1){
+                var_in_debug_file << var_in_debug[j][jj];
+            } else {
+                var_in_debug_file << var_in_debug[j][jj] << " ";
+            }
+        }
+    }
+    var_in_debug_file << std::endl;
+    var_in_debug_file.close();
+    std::ofstream var_out_debug_file;
+    var_out_debug_file.open("var_out_debug.txt", std::ios_base::app);
+    for (int j=0; j < T; ++j){
+        for (int jj=0; jj < tf_T; ++jj){
+            if (j == T-1){
+                var_out_debug_file << var_out_debug[j][jj];
+            } else {
+                var_out_debug_file << var_out_debug[j][jj] << " ";
+            }
+        }
+    }
+    var_out_debug_file << std::endl;
+    var_out_debug_file.close();
+
+    //save sqr_debug to file
+    std::ofstream sqr_debug_file;
+    sqr_debug_file.open("sqr_debug.txt", std::ios_base::app);
+    for (int j=0; j < T; ++j){
+        for (int i=0; i < N; ++i){
+            for (int jj=0; jj < tf_T; ++jj){
+                for (int ii=0; ii < tf_N; ++ii){
+                    if (j == T-1 && i == N-1){
+                        sqr_debug_file << sqr_debug[j][i][jj][ii];
+                    } else {
+                        sqr_debug_file << sqr_debug[j][i][jj][ii] << " ";
+                    }
+                }
+            }
+        }
+    }
+    sqr_debug_file << std::endl;
+    */
+    /*
     store_output:   for (int j=0; j < T; ++j){
                         for (int i=0; i < N; ++i){
                             #pragma HLS PIPELINE
@@ -248,6 +417,7 @@ void LayerNormalize(
                             }
                         }
                     }
+    */
     
 }
 

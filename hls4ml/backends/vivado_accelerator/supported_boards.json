@@ -38,5 +38,12 @@
     "python_drivers": {"axi_stream": "axi_stream_driver.py"},
     "krnl_rtl_srcs": {"axi_stream":  "krnl_rtl_src"},
     "c_drivers": {}
+  },
+  "alveo-u55c": {
+    "part": "xcu55c-fsvh2892-2L-e",
+    "tcl_scripts": {"axi_stream": "axi_stream_design.tcl"},
+    "python_drivers": {"axi_stream": "axi_stream_driver.py"},
+    "krnl_rtl_srcs": {"axi_stream":  "krnl_rtl_src"},
+    "c_drivers": {}
   }
 }

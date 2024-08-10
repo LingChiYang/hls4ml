@@ -9,6 +9,7 @@ class Clone(Layer):
     '''Inserted after the layer whose output is used more than once.'''
 
     def initialize(self):
+        self.set_attr('class_name', 'Clone')
         self.set_attr('tiling_factor', self.model.config.get_config_value('TilingFactor', [1,1,1]))
         inp = self.get_input_variable()
         for i, out_name in enumerate(self.outputs):
@@ -86,6 +87,7 @@ class CloneOutput(OptimizerPass):
                     [output],
                     [output + '_cpy' + str(i + 1) for i in range(len(output_map[output]))],
                 )
+                clone_layer.set_attr('tiling_factor', node.get_attr('tiling_factor'))
                 for i in range(len(output_map[output])):
                     key = output + '_cpy' + str(i + 1)
                     clone_layer.attributes[key].type = node.attributes['result_t']

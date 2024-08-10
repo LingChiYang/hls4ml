@@ -183,7 +183,7 @@ def make_layer_config(layer, backend, default_precision, default_reuse_factor, d
         return layer_config
 
 def config_from_keras_model(
-    model, granularity='model', backend=None, default_precision='fixed<16,6>', default_reuse_factor=1
+    model, granularity='model', backend=None, default_precision='fixed<16,6>', default_reuse_factor=1, default_tiling_factor=[1,1,1]
 ):
     """Create an HLS conversion config given the Keras model.
 
@@ -237,6 +237,7 @@ def config_from_keras_model(
 
     model_config = {}
     model_config['Precision'] = default_precision
+    model_config['TilingFactor'] = default_tiling_factor
     model_config['ReuseFactor'] = default_reuse_factor
     model_config['Strategy'] = 'Latency'
     model_config['BramFactor'] = 1_000_000_000
@@ -249,7 +250,7 @@ def config_from_keras_model(
         for layer in layer_list:
             if layer['class_name'] in type_config:
                 continue
-            layer_config = make_layer_config(layer)
+            layer_config = make_layer_config(layer, backend, default_precision, default_reuse_factor, default_tiling_factor)
             type_config[layer['class_name']] = layer_config
 
         config['LayerType'] = type_config
@@ -257,7 +258,7 @@ def config_from_keras_model(
     elif granularity.lower() == 'name':
         name_config = {}
         for layer in layer_list:
-            layer_config = make_layer_config(layer)
+            layer_config = make_layer_config(layer, backend, default_precision, default_reuse_factor, default_tiling_factor)
             name_config[layer['name']] = layer_config
 
         config['LayerName'] = name_config
@@ -318,6 +319,7 @@ def config_from_pytorch_model(
     model_config['InputsChannelLast'] = inputs_channel_last
     model_config['TransposeOutputs'] = transpose_outputs
     model_config['Strategy'] = 'Latency'
+    model_config['TraceOutput'] = False
 
     config['Model'] = model_config
 

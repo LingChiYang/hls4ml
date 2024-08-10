@@ -107,7 +107,6 @@ class FixedPrecisionConverter(PrecisionConverter):
         # If the type is already converted, do nothing
         if type_cls_name.startswith(self.prefix):
             return precision_type
-
         definition_cls = self.type_map.get(type_cls, None)
 
         if definition_cls is not None:
@@ -442,6 +441,10 @@ class QuartusInplaceStreamVariableConverter(InplaceStreamVariableConverter):
 
 class StaticWeightVariableDefinition(VariableDefinition):
     def definition_cpp(self, name_suffix='', as_reference=False):
+        #add temporarily
+        #import numpy as np
+        #self.shape = [np.prod(self.shape)]
+        #print(self.shape)
         if len(self.shape) == 1:
             var = '{type} {name}[{size}]'.format(type=self.type.name, name=self.name, size=self.data_length)
         elif len(self.shape) == 2:

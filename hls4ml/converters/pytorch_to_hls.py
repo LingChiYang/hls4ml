@@ -206,12 +206,77 @@ def pytorch_to_hls(config):
                     raise Exception('Padding modes other than "zeros" not implemented yet')
                 if not class_object.groups == 1:
                     raise Exception('Non-default options for groups not implemented yet')
+                        
 
             # Process the layer
             layer, output_shape = layer_handlers[pytorch_class](
                 pytorch_class, layer_name, input_names, input_shapes, node, class_object, reader, config
             )
-
+            
+            #for transformer encoder
+            if 'TransformerEncoder' in pytorch_class:
+                if len(input_names) > 1:
+                    if len(node.kwargs.keys()) == 0:
+                        raise Exception('Passing the arguments by position can be ambiguous. Please pass the arguments by name')
+                    #if node.kwargs has the key mask, then remove the node from layer_list and add the mask attribute to current node
+                if 'mask' in node.kwargs.keys():
+                    mask_node = node.kwargs['mask']
+                    if '.' not in mask_node.target:
+                        obj = getattr(model, mask_node.name)
+                    else:
+                        obj = getattr(children[mask_node.target.split('.')[0], mask_node.name])
+                    mask = obj.numpy() != 0
+                    mask = mask.astype(int)
+                    for transenc_layer in layer['layer_list'][0]['layer_list']:
+                        for transenc_sublayer in transenc_layer['layer_list']:
+                            if transenc_sublayer['class_name'] == 'MultiheadAttention':
+                                transenc_sublayer['mask_data'] = mask                        
+                    #delete the layer that layer['name'] == mask_node.name from layer_list
+                    for i in range(len(layer_list)):
+                        if layer_list[i]['name'] == mask_node.name:
+                            del layer_list[i]
+                            break
+                    for i in range(len(input_layers)):
+                        if input_layers[i] == mask_node.name:
+                            del input_layers[i]
+                            break
+                else:
+                    import numpy as np
+                    mask = np.zeros((input_shapes[0][1], input_shapes[0][1]))
+                    mask = mask.astype(int)
+                    for transenc_layer in layer['layer_list'][0]['layer_list']:
+                        for transenc_sublayer in transenc_layer['layer_list']:
+                            if transenc_sublayer['class_name'] == 'MultiheadAttention':
+                                transenc_sublayer['mask_data'] = mask
+            #for multiheadattention
+            if 'MultiheadAttention' in pytorch_class:
+                if len(input_names) > 3:
+                    if len(node.kwargs.keys()) == 0:
+                        raise Exception('Passing the arguments by position can be ambiguous. Please pass the arguments by name')
+                    #if node.kwargs has the key mask, then remove the node from layer_list and add the mask attribute to current node
+                if 'attn_mask' in node.kwargs.keys():
+                    mask_node = node.kwargs['attn_mask']
+                    if '.' not in mask_node.target:
+                        obj = getattr(model, mask_node.name)
+                    else:
+                        obj = getattr(children[mask_node.target.split('.')[0], mask_node.name])
+                    mask = obj.numpy() != 0
+                    mask = mask.astype(int)
+                    layer['mask_data'] = mask
+                    #delete the layer that layer['name'] == mask_node.name from layer_list
+                    for i in range(len(layer_list)):
+                        if layer_list[i]['name'] == mask_node.name:
+                            del layer_list[i]
+                            break
+                    for i in range(len(input_layers)):
+                        if input_layers[i] == mask_node.name:
+                            del input_layers[i]
+                            break
+                else:
+                    import numpy as np
+                    mask = np.zeros((input_shapes[0][1], input_shapes[0][1]))
+                    mask = mask.astype(int)
+                    layer['mask_data'] = mask
             print(
                 'Layer name: {}, layer type: {}, input shape: {}'.format(
                     layer['name'],

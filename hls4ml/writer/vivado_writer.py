@@ -77,6 +77,19 @@ class VivadoWriter(Writer):
         h_file.write("\n#endif\n")
         h_file.close()
 
+        #sep = ''
+        #for x in var:
+        #    h_file.write(sep + x)
+        #    if write_txt_file:
+        #        txt_file.write(sep + x)
+        #    sep = ", "
+        #h_file.write("};\n")
+        #if write_txt_file:
+        #    h_file.write("#endif\n")
+        #    txt_file.close()
+        #h_file.write("\n#endif\n")
+        #h_file.close()
+
     def write_project_dir(self, model):
         """Write the base project directory
 
@@ -167,6 +180,7 @@ class VivadoWriter(Writer):
                                 w.type.name, w.data_length, w.name, w.name
                             )
                         else:
+                            #w.shape = [np.prod(w.shape)]
                             if len(w.shape) == 1:
                                 newline += indent + '    nnet::load_weights_from_txt<{}, {}>({}, "{}.txt");\n'.format(w.type.name, w.data_length, w.name, w.name)
                             elif len(w.shape) == 2:
@@ -205,6 +219,14 @@ class VivadoWriter(Writer):
                     else:
                         newline += indent + '#pragma HLS PIPELINE \n'
                 if io_type == 'io_stream':
+                    newline += indent + '#pragma HLS INTERFACE axis port={},{} \n'.format(
+                        ','.join(all_inputs), ','.join(all_outputs)
+                    )
+                    if all_brams:
+                        newline += indent + '#pragma HLS INTERFACE bram port={} \n'.format(','.join(all_brams))
+                    newline += indent + '#pragma HLS DATAFLOW \n'
+
+                if io_type == 'io_tile_stream':
                     newline += indent + '#pragma HLS INTERFACE axis port={},{} \n'.format(
                         ','.join(all_inputs), ','.join(all_outputs)
                     )

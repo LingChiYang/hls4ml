@@ -68,9 +68,15 @@ class VivadoBackend(FPGABackend):
         for layer in transformer_layers:
             attrs = self.attribute_map.get(layer, [])
             attrs.append(ConfigurableAttribute('tiling_factor', value_type=list, default=[1, 1, 1]))
-            attrs.append(ConfigurableAttribute('table_size', default=1024))
-            attrs.append(ConfigurableAttribute('table_range', default=1))
-            attrs.append(TypeAttribute('table', default=FixedPrecisionType(18, 8)))
+            #attrs.append(ConfigurableAttribute('table_size', default=1024))
+            #attrs.append(ConfigurableAttribute('exp_table_size', default=1024))
+            #attrs.append(ConfigurableAttribute('inv_table_size', default=1024))
+            #attrs.append(ConfigurableAttribute('table_range', default=1))
+            #attrs.append(ConfigurableAttribute('exp_table_range', default=8))
+            #attrs.append(ConfigurableAttribute('inv_table_range', default=256))
+            #attrs.append(TypeAttribute('table', default=FixedPrecisionType(18, 8)))        
+            #attrs.append(TypeAttribute('exp_table', default=FixedPrecisionType(18, 8)))        
+            #attrs.append(TypeAttribute('inv_table', default=FixedPrecisionType(18, 8)))        
             self.attribute_map[layer] = attrs
 
         # Add ParallelizationFactor to Conv1D/2D
@@ -505,20 +511,38 @@ class VivadoBackend(FPGABackend):
         layer.set_attr('qkv_ram_style', qkv_ram_style)
         layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
 
-        exp_table_range = layer.model.config.get_layer_config_value(layer, 'exp_table_range', 8)
-        inv_table_range = layer.model.config.get_layer_config_value(layer, 'inv_table_range', 128)
+        exp_table_range = layer.model.config.get_layer_config_value(layer, 'ExpTableRange', 8)
+        inv_table_range = layer.model.config.get_layer_config_value(layer, 'InvTableRange', 256)
         layer.set_attr('exp_table_range', exp_table_range)
         layer.set_attr('inv_table_range', inv_table_range)
-        
+
+        exp_table_size = layer.model.config.get_layer_config_value(layer, 'ExpTableSize', 1024)
+        inv_table_size = layer.model.config.get_layer_config_value(layer, 'InvTableSize', 1024)
+        layer.set_attr('exp_table_size', exp_table_size)
+        layer.set_attr('inv_table_size', inv_table_size)
+    
+        exp_table_t, _ = layer.model.config.get_precision(layer, 'exp_table')
+        inv_table_t, _ = layer.model.config.get_precision(layer, 'inv_table')
+        in_proj_out_t, _ = layer.model.config.get_precision(layer, 'in_proj_out')
+        out_proj_in_t, _ = layer.model.config.get_precision(layer, 'out_proj_in')
+        row_sum_t, _ = layer.model.config.get_precision(layer, 'row_sum')
+        scale_t, _ = layer.model.config.get_precision(layer, 'scale')
+        layer.set_attr('exp_table_t', NamedType(layer.name+'_exp_table_t', exp_table_t))
+        layer.set_attr('inv_table_t', NamedType(layer.name+'_inv_table_t', inv_table_t))
+        layer.set_attr('scale_t', NamedType(layer.name+'_scale_t', scale_t))
+        layer.set_attr('in_proj_out_t', NamedType(layer.name+'_in_proj_out_t', in_proj_out_t))
+        layer.set_attr('row_sum_t', NamedType(layer.name+'_row_sum_t', row_sum_t))
+        layer.set_attr('out_proj_in_t', NamedType(layer.name+'_out_proj_in_t', out_proj_in_t))
+        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(64, 16)))
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
 
     @layer_optimizer(LayerNorm)
     def init_layernorm(self, layer):
         tiling_factor = layer.model.config.get_tiling_factor(layer)
         layer.set_attr('tiling_factor', tiling_factor)
-        layer.set_attr('mean_t', layer.model.config.get_layer_config_value(layer, 'mean_t', 'ap_fixed<18,8>'))
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
         layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
+        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(64, 16)))
 
     @layer_optimizer(FeedForwardNetwork)
     def init_ffn(self, layer):
@@ -528,3 +552,6 @@ class VivadoBackend(FPGABackend):
         layer.set_attr('out_ram_style', layer.model.config.get_layer_config_value(layer, 'OutRAMStyle', 'block'))
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
         layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
+        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(64, 16)))
+        hidden_t, _ = layer.model.config.get_precision(layer, 'hidden')
+        layer.set_attr('hidden_t', NamedType(layer.name+'_hidden_t', hidden_t))

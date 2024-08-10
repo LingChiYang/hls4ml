@@ -1299,6 +1299,7 @@ class FeedForwardNetwork(Layer):
         WeightAttribute('out_proj_bias'),
         TypeAttribute('in_proj_weight'),
         TypeAttribute('in_proj_bias'),
+        TypeAttribute('hidden'),
         TypeAttribute('out_proj_weight'),
         TypeAttribute('out_proj_bias'),
         TypeAttribute('accum_t'),
@@ -1308,20 +1309,36 @@ class FeedForwardNetwork(Layer):
         self.add_weights_variable(name='in_proj_bias')
         self.add_weights_variable(name='out_proj_weight')
         self.add_weights_variable(name='out_proj_bias')
-        dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
+        dims = ['ffn_seq_out_{}'.format(self.index), 'ffn_feature_out_{}'.format(self.index)]
         shape = [self.attributes['seq_len'], self.attributes['embed_dim']]
         self.add_output_variable(shape, dims)
+        self.set_attr('hidden_t', NamedType(*reversed(self.model.config.get_precision(self, 'hidden'))))
 
 
 class LayerNorm(Layer):
     _expected_attributes = [
+        Attribute('embed_dim'),
+        Attribute('seq_len'),
+        WeightAttribute('scale'),
+        WeightAttribute('bias'),
+        TypeAttribute('scale'),
+        TypeAttribute('bias'),
+        TypeAttribute('sum'),
+        TypeAttribute('sum_sqr'),
+        TypeAttribute('mean'),
+        TypeAttribute('var_table'),
     ]
     def initialize(self):
         self.add_weights_variable(name='scale')
         self.add_weights_variable(name='bias')
-        dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
+        dims = ['ln_seq_out_{}'.format(self.index), 'ln_feature_out_{}'.format(self.index)]
         shape = [self.attributes['seq_len'], self.attributes['embed_dim']]
         self.add_output_variable(shape, dims)
+
+        self.set_attr('sum_t', NamedType(*reversed(self.model.config.get_precision(self, 'sum'))))
+        self.set_attr('sum_sqr_t', NamedType(*reversed(self.model.config.get_precision(self, 'sum_sqr'))))
+        self.set_attr('mean_t', NamedType(*reversed(self.model.config.get_precision(self, 'mean'))))
+        self.set_attr('var_table_t', NamedType(*reversed(self.model.config.get_precision(self, 'var_table'))))
 
 class MultiheadAttention(Layer):
     _expected_attributes = [
@@ -1333,11 +1350,20 @@ class MultiheadAttention(Layer):
         WeightAttribute('in_proj_bias'),
         WeightAttribute('out_proj_weight'),
         WeightAttribute('out_proj_bias'),
+        WeightAttribute('mask'),
         TypeAttribute('in_proj_weight'),
         TypeAttribute('in_proj_bias'),
         TypeAttribute('out_proj_weight'),
         TypeAttribute('out_proj_bias'),
         TypeAttribute('accum_t'),
+        TypeAttribute('scale_t'),
+        TypeAttribute('in_proj_out_t'),
+        TypeAttribute('row_sum_t'),
+        TypeAttribute('out_proj_in_t'),
+        TypeAttribute('exp_table_t'),
+        TypeAttribute('inv_table_t'),
+        #Attribute('inv_table_range', value_type=int, default=256),
+        #Attribute('exp_table_range', value_type=int, default=8),
     ]
 
     def initialize(self):
@@ -1346,9 +1372,17 @@ class MultiheadAttention(Layer):
         self.add_weights_variable(name='in_proj_bias')
         self.add_weights_variable(name='out_proj_weight')
         self.add_weights_variable(name='out_proj_bias')
-        dims = ['seq_out_{}'.format(self.index), 'feature_out_{}'.format(self.index)]
+        self.add_weights_variable(name='mask', precision=IntegerPrecisionType(width=1, signed=False))
+        dims = ['att_seq_out_{}'.format(self.index), 'att_feature_out_{}'.format(self.index)]
         shape = [self.attributes['seq_len'], self.attributes['embed_dim']]
         self.add_output_variable(shape, dims)
+
+        self.set_attr('exp_table_t', NamedType(*reversed(self.model.config.get_precision(self, 'exp_table_t'))))
+        self.set_attr('inv_table_t', NamedType(*reversed(self.model.config.get_precision(self, 'inv_table_t'))))
+        self.set_attr('scale_t', NamedType(*reversed(self.model.config.get_precision(self, 'scale_t'))))
+        self.set_attr('in_proj_out_t', NamedType(*reversed(self.model.config.get_precision(self, 'in_proj_out_t'))))
+        self.set_attr('row_sum_t', NamedType(*reversed(self.model.config.get_precision(self, 'row_sum_t'))))
+        self.set_attr('out_proj_in_t', NamedType(*reversed(self.model.config.get_precision(self, 'out_proj_in_t'))))
 
 class LayerGroup(Layer):
     _expected_attributes = [

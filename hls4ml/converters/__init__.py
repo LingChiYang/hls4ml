@@ -292,6 +292,7 @@ def convert_from_pytorch_model(
     config['InputShape'] = input_shape
     config['InputData'] = input_data_tb
     config['OutputPredictions'] = output_data_tb
+    config['TraceOutput'] = True # This is to trace the output of the model
     config['HLSConfig'] = {}
 
     if hls_config is None:

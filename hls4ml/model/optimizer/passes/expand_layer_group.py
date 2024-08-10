@@ -13,6 +13,7 @@ class ExpandLayerGroup(OptimizerPass):
         # We'll keep track of inserted Input nodes to remove later
         inserted_input_nodes = []
         layer_list = node.get_attr('layer_list')
+        
         for i, layer in enumerate(layer_list):
             kind = layer['class_name']
             name = layer['name']

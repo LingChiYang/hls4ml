@@ -15,17 +15,22 @@ mha_template = """struct config{index} : nnet::mha_config {{
     static const unsigned attn_ram_style = nnet::block;
     static const unsigned out_ram_style = nnet::block;
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
-    static const unsigned table_size = {table_size};
+    static const unsigned inv_table_size = {inv_table_size};
+    static const unsigned exp_table_size = {exp_table_size};
     typedef {out_proj_bias_t.name} out_proj_bias_t;
     typedef {out_proj_weight_t.name} out_proj_weight_t;
     typedef {in_proj_bias_t.name} in_proj_bias_t;
     typedef {in_proj_weight_t.name} in_proj_weight_t;
-    typedef {out_proj_bias_t.name} exp_table_t;
-    typedef {out_proj_bias_t.name} inv_table_t;
-    typedef {out_proj_bias_t.name} table_t;
+    typedef {mask_t.name} mask_t;
+    typedef {exp_table_t.name} exp_table_t;
+    typedef {inv_table_t.name} inv_table_t;
+    typedef {scale_t.name} scale_t;
     typedef {accum_t.name} accum_t;
-    static const unsigned inv_range = 256;
-    static const unsigned exp_range = 8;
+    typedef {in_proj_out_t.name} in_proj_out_t;
+    typedef {out_proj_in_t.name} out_proj_in_t;
+    typedef {row_sum_t.name} row_sum_t;
+    static const unsigned inv_range = {inv_table_range};
+    static const unsigned exp_range = {exp_table_range};
     
 }};\n"""
 
@@ -40,23 +45,27 @@ ffn_template = """struct config{index} : nnet::ffn_config {{
     typedef {out_proj_weight_t.name} out_proj_weight_t;
     typedef {in_proj_bias_t.name} in_proj_bias_t;
     typedef {in_proj_weight_t.name} in_proj_weight_t;
+    typedef {hidden_t.name} hidden_t;
     typedef {accum_t.name} accum_t;
 }};\n"""
 
 layernorm_template = """struct config{index} : nnet::layernorm_config {{
     static const unsigned seq_len = {seq_len};
     static const unsigned embed_dim = {embed_dim};
-    static const unsigned table_size = {table_size};
-    static const unsigned log_table_range = {table_range};
+    static const unsigned table_size = {var_table_size};
+    static const unsigned table_range = {var_table_range};
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
-    typedef {bias_t.name} mean_t;   
+    typedef {sum_sqr_t.name} sum_sqr_t;
+    typedef {mean_t.name} mean_t;
+    typedef {sum_t.name} sum_t;   
     typedef {bias_t.name} bias_t;
     typedef {scale_t.name} scale_t;
-    typedef {bias_t.name} table_t;
+    typedef {var_table_t.name} var_table_t;
+    typedef {accum_t.name} accum_t;
 }};\n"""
 
 
-mha_function_template = 'nnet::MultiHeadAttention<{input_t}, {output_t}, {config}>({input}, {output}, {iprj_w}, {iprj_b}, {oprj_w}, {oprj_b});'
+mha_function_template = 'nnet::MultiHeadAttention<{input_t}, {output_t}, {config}>({input}, {output}, {iprj_w}, {iprj_b}, {oprj_w}, {oprj_b}, {mask});'
 mha_include_list = ["nnet_utils/nnet_multiheadattention_stream.h"]
 
 layernorm_function_template = 'nnet::LayerNormalize<{input_t}, {output_t}, {config}>({input}, {output}, {s}, {b});'
@@ -87,6 +96,7 @@ class MHAFunctionTemplate(FunctionCallTemplate):
         params['iprj_b'] = node.get_weights('in_proj_bias').name
         params['oprj_w'] = node.get_weights('out_proj_weight').name
         params['oprj_b'] = node.get_weights('out_proj_bias').name
+        params['mask'] = node.get_weights('mask').name
         return self.templates.format(**params)
 
 class LayerNormConfigTemplate(LayerConfigTemplate):
