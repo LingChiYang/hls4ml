@@ -117,7 +117,7 @@ def pytorch_to_hls(config):
     # This is a list of dictionaries to hold all the layer info we need to generate HLS
     layer_list = []
 
-    print('Interpreting Model ...')
+    #print('Interpreting Model ...')
 
     reader = PyTorchFileReader(config) if isinstance(config['PytorchModel'], str) else PyTorchModelReader(config)
     if type(reader.input_shape) is tuple:
@@ -150,7 +150,7 @@ def pytorch_to_hls(config):
     output_shape = None
 
     # Loop through layers
-    print('Topology:')
+    #print('Topology:')
     layer_counter = 0
 
     n_inputs = 0
@@ -170,7 +170,7 @@ def pytorch_to_hls(config):
                 class_object = children[node.target]
 
             pytorch_class = class_object.__class__.__name__
-            print(f'Layer {layer_counter}: {pytorch_class}')
+            #print(f'Layer {layer_counter}: {pytorch_class}')
             if pytorch_class not in supported_layers:
                 raise Exception(f'Unsupported layer {pytorch_class}')
 
@@ -277,13 +277,13 @@ def pytorch_to_hls(config):
                     mask = np.zeros((input_shapes[0][1], input_shapes[0][1]))
                     mask = mask.astype(int)
                     layer['mask_data'] = mask
-            print(
-                'Layer name: {}, layer type: {}, input shape: {}'.format(
-                    layer['name'],
-                    layer['class_name'],
-                    input_shapes,
-                )
-            )
+            #print(
+            #    'Layer name: {}, layer type: {}, input shape: {}'.format(
+            #        layer['name'],
+            #        layer['class_name'],
+            #        input_shapes,
+            #    )
+            #)
             layer_list.append(layer)
 
             assert output_shape is not None
@@ -337,7 +337,7 @@ def pytorch_to_hls(config):
                 operation, layer_name, input_names, input_shapes, node, None, reader, config
             )
 
-            print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
+            #print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
             layer_list.append(layer)
 
             assert output_shape is not None
@@ -391,7 +391,7 @@ def pytorch_to_hls(config):
                 operation, layer_name, input_names, input_shapes, node, None, reader, config
             )
 
-            print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
+            #print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
             layer_list.append(layer)
 
             assert output_shape is not None
@@ -400,6 +400,6 @@ def pytorch_to_hls(config):
     if len(input_layers) == 0:
         input_layers = None
 
-    print('Creating HLS model')
+    #print('Creating HLS model')
     hls_model = ModelGraph(config, layer_list, inputs=input_layers)
     return hls_model

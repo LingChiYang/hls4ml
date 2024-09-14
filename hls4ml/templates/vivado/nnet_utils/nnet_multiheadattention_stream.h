@@ -305,7 +305,9 @@ void DetermineProductPVO(
     const int tf_H,
     const int T,
     const int c,
-    const int v_idx)
+    const int v_idx,
+    const int o_idx,
+    const int hd_idx)
 {
     #pragma HLS dependence variable=O type=inter false
     typename CONFIG_T::accum_t O_buf[CONFIG_T::n_head*CONFIG_T::tiling_factor[0]*CONFIG_T::tiling_factor[2]];
@@ -325,6 +327,10 @@ void DetermineProductPVO(
                 }
                 O_buf[h*tf_T*tf_H + ii*tf_H + kk] = (v_idx == 0) ? static_cast<typename CONFIG_T::out_proj_in_t>(0) : O[h*tf_T*tf_H + ii*tf_H + kk];
                 O_buf[h*tf_T*tf_H + ii*tf_H + kk] = prev_exp_tmp[h*tf_T + ii]*O_buf[h*tf_T*tf_H + ii*tf_H + kk] + tmp;
+                //if (o_idx == 0 && hd_idx == 0 && h ==0){
+                //    std::cout << "P: " << P[h*tf_T*tf_T + ii] << " " << V[h*tf_T*tf_H + ii*tf_H + kk] << std::endl;
+                //    std::cout << "O_buf: " << O_buf[h*tf_T*tf_H + ii*tf_H + kk] << " " << prev_exp_tmp[h*tf_T + ii] << " " << tmp << std::endl;
+                //}
             }
         }
     }
@@ -436,6 +442,7 @@ void MultiHeadAttention(
     int in_proj_input_offset = 0;
     int in_proj_output_offset = 0;
     typename CONFIG_T::accum_t tmp_qk_debug[CONFIG_T::head_dim];
+    typename CONFIG_T::accum_t data_debug[T][N];
     compute_KVQ:  
     for (int i = 0; i < T; i++) {
         for (int k = 0; k < H; k++) {
@@ -447,6 +454,7 @@ void MultiHeadAttention(
                 in_proj_output_offset = (i*H + k)*tf_H*tf_T*CONFIG_T::n_head;
                 if (k==0){
                     data_pack = data_qkv.read();
+                    data_debug[i][j] = data_pack[0];
                 }
                 for (int h = 0; h < CONFIG_T::n_head; h++) {//48dsp
                     #pragma HLS UNROLL
@@ -538,6 +546,7 @@ void MultiHeadAttention(
     typename CONFIG_T::accum_t attn_weight_debug[CONFIG_T::n_head][T][T];
     typename CONFIG_T::accum_t row_sum_debug[CONFIG_T::n_head][T][T];
     typename CONFIG_T::accum_t row_max_debug[CONFIG_T::n_head][T][T];
+    typename CONFIG_T::accum_t inv_rowsum_debug[CONFIG_T::n_head][T];
     compute_attn_pipeline:   
     for (int c = 0; c < T*T+1; c++){
         for (int hd_idx = 0; hd_idx < H; hd_idx++) { //hd_idx is the index of the head dimension
@@ -597,7 +606,11 @@ void MultiHeadAttention(
             if (hd_idx == H-1) {InvertWriteQK<CONFIG_T>(write_QK0, tf_T);}
             //std::cout << "dk: " << 8 << std::endl;
             if (c > 0) {
-                DetermineProductPVO<CONFIG_T>(P, V + v_offset, O + o_offset, new_rowsum, prev_exp_tmp, inv_rowsum, tf_T, tf_H, T, c, v_idx);
+                DetermineProductPVO<CONFIG_T>(P, V + v_offset, O + o_offset, new_rowsum, prev_exp_tmp, inv_rowsum, tf_T, tf_H, T, c, v_idx, o_idx, hd_idx);
+                //save inv_rowsum
+                for (int h=0; h < CONFIG_T::n_head; h++) {
+                    inv_rowsum_debug[h][o_idx] = inv_rowsum[h];
+                }
             }
             //std::cout << "dk: " << 9 << std::endl;
             UpdateRowMaxSum<CONFIG_T>(new_rowsum, prev_rowsum, new_rowmax, prev_rowmax);
@@ -657,6 +670,23 @@ void MultiHeadAttention(
             }
         }
     }
+    /*
+    //save data_debug
+    std::ofstream data_debug_file;
+    data_debug_file.open("data_debug.txt", std::ios_base::app);
+    data_debug_file << std::fixed << std::setprecision(15);
+    for (int i = 0; i < T; i++) {
+        for (int j = 0; j < N; j++) {
+            if (j == N-1) {
+                data_debug_file << data_debug[i][j];
+            } else {
+                data_debug_file << data_debug[i][j] << " ";
+            }
+        }
+        data_debug_file << std::endl;
+    }
+    data_debug_file << std::endl;
+    data_debug_file.close();
     //save O
     std::ofstream O_debug_file;
     O_debug_file.open("O_debug.txt", std::ios_base::app);
@@ -719,20 +749,20 @@ void MultiHeadAttention(
     std::ofstream K_debug_file;
     K_debug_file.open("K_debug.txt", std::ios_base::app);
     K_debug_file << std::fixed << std::setprecision(15);
-    for (int i = 0; i < CONFIG_T::n_head; i++) {
-        for (int t = 0; t < T; t++) {
-            for (int tt = 0; tt < tf_T; tt++) {
+    for (int t = 0; t < T; t++) {
+        for (int tt = 0; tt < tf_T; tt++) {
+            for (int i = 0; i < CONFIG_T::n_head; i++) {
                 for (int h = 0; h < H; h++) {
                     for (int hh = 0; hh < tf_H; hh++) {
-                        if (h == H-1 && hh == tf_H-1) {
+                        if (h == H-1 && hh == tf_H-1 && i == CONFIG_T::n_head-1) {
                             K_debug_file << K[(t*H + h)*tf_H*tf_T*CONFIG_T::n_head + i*tf_T*tf_H + tt*tf_H + hh];
                         } else {
                             K_debug_file << K[(t*H + h)*tf_H*tf_T*CONFIG_T::n_head + i*tf_T*tf_H + tt*tf_H + hh] << " ";
                         }
                     }
                 }
-                K_debug_file << std::endl;
             }
+            K_debug_file << std::endl;
         }
     }
     K_debug_file << std::endl;
@@ -742,20 +772,20 @@ void MultiHeadAttention(
     std::ofstream Q_debug_file;
     Q_debug_file.open("Q_debug.txt", std::ios_base::app);
     Q_debug_file << std::fixed << std::setprecision(15);
-    for (int i = 0; i < CONFIG_T::n_head; i++) {
-        for (int t = 0; t < T; t++) {
-            for (int tt = 0; tt < tf_T; tt++) {
+    for (int t = 0; t < T; t++) {
+        for (int tt = 0; tt < tf_T; tt++) {
+            for (int i = 0; i < CONFIG_T::n_head; i++) {
                 for (int h = 0; h < H; h++) {
                     for (int hh = 0; hh < tf_H; hh++) {
-                        if (h == H-1 && hh == tf_H-1) {
+                        if (h == H-1 && hh == tf_H-1 && i == CONFIG_T::n_head-1) {
                             Q_debug_file << Q[(t*H + h)*tf_H*tf_T*CONFIG_T::n_head + i*tf_T*tf_H + tt*tf_H + hh];
                         } else {
                             Q_debug_file << Q[(t*H + h)*tf_H*tf_T*CONFIG_T::n_head + i*tf_T*tf_H + tt*tf_H + hh] << " ";
                         }
                     }
                 }
-                Q_debug_file << std::endl;
             }
+            Q_debug_file << std::endl;
         }
     }
     Q_debug_file << std::endl;
@@ -838,6 +868,7 @@ void MultiHeadAttention(
     }
     mha_out_debug_file << std::endl;
     mha_out_debug_file.close();
+    */
 
     //std::cout << "res_debug" << std::endl;
     //for (int i = 0; i < T; i++) {

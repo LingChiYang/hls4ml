@@ -350,7 +350,7 @@ def config_from_pytorch_model(
     output_shape = None
 
     # Loop through layers
-    print('TTTTTTTTTopology:')
+    #print('TTTTTTTTTopology:')
     layer_counter = 0
 
     n_inputs = 0
@@ -370,7 +370,7 @@ def config_from_pytorch_model(
                 class_object = children[node.target]
 
             pytorch_class = class_object.__class__.__name__
-            print(f'Layer {layer_counter}: {pytorch_class}')
+            #print(f'Layer {layer_counter}: {pytorch_class}')
             if pytorch_class not in supported_layers:
                 raise Exception(f'Unsupported layer {pytorch_class}')
 
@@ -413,13 +413,13 @@ def config_from_pytorch_model(
                 pytorch_class, layer_name, input_names, input_shapes, node, class_object, reader, config
             )
 
-            print(
-                'Layer name: {}, layer type: {}, input shape: {}'.format(
-                    layer['name'],
-                    layer['class_name'],
-                    input_shapes,
-                )
-            )
+            #print(
+            #    'Layer name: {}, layer type: {}, input shape: {}'.format(
+            #        layer['name'],
+            #        layer['class_name'],
+            #        input_shapes,
+            #    )
+            #)
             layer_list.append(layer)
 
             assert output_shape is not None
@@ -473,7 +473,7 @@ def config_from_pytorch_model(
                 operation, layer_name, input_names, input_shapes, node, None, reader, config
             )
 
-            print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
+            #print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
             layer_list.append(layer)
 
             assert output_shape is not None
@@ -527,7 +527,7 @@ def config_from_pytorch_model(
                 operation, layer_name, input_names, input_shapes, node, None, reader, config
             )
 
-            print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
+            #print('Layer name: {}, layer type: {}, input shape: {}'.format(layer['name'], layer['class_name'], input_shapes))
             layer_list.append(layer)
 
             assert output_shape is not None

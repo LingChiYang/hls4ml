@@ -533,7 +533,7 @@ class VivadoBackend(FPGABackend):
         layer.set_attr('in_proj_out_t', NamedType(layer.name+'_in_proj_out_t', in_proj_out_t))
         layer.set_attr('row_sum_t', NamedType(layer.name+'_row_sum_t', row_sum_t))
         layer.set_attr('out_proj_in_t', NamedType(layer.name+'_out_proj_in_t', out_proj_in_t))
-        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(64, 16)))
+        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(80, 32)))
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
 
     @layer_optimizer(LayerNorm)
@@ -542,7 +542,7 @@ class VivadoBackend(FPGABackend):
         layer.set_attr('tiling_factor', tiling_factor)
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
         layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
-        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(64, 16)))
+        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(80, 32)))
 
     @layer_optimizer(FeedForwardNetwork)
     def init_ffn(self, layer):
@@ -552,6 +552,6 @@ class VivadoBackend(FPGABackend):
         layer.set_attr('out_ram_style', layer.model.config.get_layer_config_value(layer, 'OutRAMStyle', 'block'))
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))
         layer.set_attr('iotype', layer.model.config.get_config_value('IOType'))
-        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(64, 16)))
+        layer.set_attr('accum_t', NamedType(layer.name+'_accum_t', FixedPrecisionType(80, 32)))
         hidden_t, _ = layer.model.config.get_precision(layer, 'hidden')
         layer.set_attr('hidden_t', NamedType(layer.name+'_hidden_t', hidden_t))

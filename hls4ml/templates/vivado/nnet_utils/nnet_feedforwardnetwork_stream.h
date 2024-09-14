@@ -265,10 +265,27 @@ void FeedForwardNetwork(
     for (int i=0; i < tf_T*tf_H; i=i+1){
         write_hidden_ping[i] = true;
     }
-    ap_fixed<18,8,AP_RND_CONV> linear_debug[CONFIG_T::seq_len][CONFIG_T::hidden_dim];
-    typename CONFIG_T::accum_t data_debug[T][N][tf_T][tf_N];
-    typename res_T::value_type res_debug[T][N][tf_T][tf_N];
-    std::cout << " ffndata = " << std::endl;
+    //ap_fixed<18,8,AP_RND_CONV> linear_debug[CONFIG_T::seq_len][CONFIG_T::hidden_dim];
+    //typename CONFIG_T::accum_t data_debug[T][N][tf_T][tf_N];
+    typename CONFIG_T::accum_t ress_debug[T*N*tf_T*tf_N];
+    typename CONFIG_T::accum_t hidden_debug[T][H][tf_T][tf_H];
+    //std::cout << " ffndata = " << std::endl;
+    ////initialize row_buffer
+    //for (int i=0; i < CONFIG_T::embed_dim; i=i+1){
+    //    row_buffer[i] = 0;
+    //}
+    //std::ofstream data_debug_file;
+    //data_debug_file.open("ffn_data_debug.txt", std::ios_base::app);
+    //data_debug_file << std::fixed << std::setprecision(15);
+    //std::cout << "ffn_res_debug.txt" << std::endl;
+    //std::ofstream res_debug_file;
+    //res_debug_file.open("ffn_res_debug.txt", std::ios_base::app);
+    //res_debug_file << std::fixed << std::setprecision(15);
+    //std::cout << "ffn_res_debug_after.txt" << std::endl;
+    //std::ofstream hidden_debug_file;
+    //hidden_debug_file.open("ffn_hidden_debug.txt", std::ios_base::app);
+    //hidden_debug_file << std::fixed << std::setprecision(15);
+
     pipeline_product1n2: 
     for (int c=0; c < T+1; ++c){
         for (int k=0; k < N*H; k=k+1){
@@ -281,6 +298,7 @@ void FeedForwardNetwork(
             if (hi==0 && c<T) {
                 data_pack = data.read();
             }
+            
             if (c<T) {
                 for (int tt=0; tt < tf_T; ++tt){
                     #pragma HLS UNROLL
@@ -289,7 +307,14 @@ void FeedForwardNetwork(
                         for (int nn=0; nn < tf_N; ++nn){
                             #pragma HLS UNROLL
                             if (hi==0 && hh==0) {
+                                //data_debug[c][ni][tt][nn] = data_pack[tt*tf_N + nn];
+                                //if (ni==N-1) {
+                                //    data_debug_file << data_pack[tt*tf_N + nn] << std::endl;
+                                //} else {
+                                //    data_debug_file << data_pack[tt*tf_N + nn] << " ";
+                                //}
                                 row_buffer[input_offset + tt*tf_N + nn] = data_pack[tt*tf_N + nn];
+                
                             }
                             if (ni==0 && nn==0) {
                                 tmp_hidden_buffer[tt][hh] = in_proj_bias[in_proj_bias_offset + hh];
@@ -303,17 +328,27 @@ void FeedForwardNetwork(
                         #pragma HLS UNROLL
                         for (int hh=0; hh < tf_H; ++hh){
                             #pragma HLS UNROLL
+                            //hidden_debug[c][hi][tt][hh] = tmp_hidden_buffer[tt][hh];
+                            //if (hi==H-1){
+                            //    hidden_debug_file << tmp_hidden_buffer[tt][hh] << std::endl;
+                            //} else {
+                            //    hidden_debug_file << tmp_hidden_buffer[tt][hh] << " ";
+                            //}
                             tmp_hidden_buffer[tt][hh] = (tmp_hidden_buffer[tt][hh] > 0) ? tmp_hidden_buffer[tt][hh] : static_cast<typename CONFIG_T::accum_t>(0);
+                            
                             if (write_hidden_ping[tt*tf_H + hh]){
                                 hidden_buffer_ping[hi][tt][hh] = tmp_hidden_buffer[tt][hh];
+                                
                             } else {
                                 hidden_buffer_pong[hi][tt][hh] = tmp_hidden_buffer[tt][hh];
+                                
                             }
                         }
                     }
                 
                 }
             }
+            
             if (c>0) {
                 for (int tt=0; tt < tf_T; ++tt){
                     #pragma HLS UNROLL
@@ -342,13 +377,26 @@ void FeedForwardNetwork(
                             //if (no == N-1) {
                             //    std::cout << std::endl;
                             //}
-                            res_debug[c-1][no][tt][nn] = tmp_output_buffer[tt][nn];
+                            //ress_debug[(c-1)*N*tf_T*tf_N + no*tf_T*tf_N + tt*tf_N + nn] = tmp_output_buffer[tt][nn];
+                            //if (no == N-1 && tt == 0 && nn == 0) {     
+                            //    res_debug_file << static_cast<typename res_T::value_type>(tmp_output_buffer[tt][nn]);
+                            //} else {
+                            //    //std::cout << res_debug[i][j][ii][jj] << " ";
+                            //    res_debug_file << static_cast<typename res_T::value_type>(tmp_output_buffer[tt][nn]) << " ";
+                            //}
+                            //std::cout << "tmp_output_buffer[tt][nn]: " << tmp_output_buffer[tt][nn] << std::endl;
+                            //if (no == N-1 && tt == 0 && nn == 0) {
+                            //    res_debug_file << static_cast<typename res_T::value_type>(tmp_output_buffer[tt][nn]) << std::endl;
+                            //} else {
+                            //    res_debug_file << static_cast<typename res_T::value_type>(tmp_output_buffer[tt][nn]) << " ";
+                            //}
                             res_pack[tt*tf_N + nn] = tmp_output_buffer[tt][nn];
                         }
                     }
                     res.write(res_pack);
                 }
             }
+            
             if (k == N*H-1){
                 for (int tt=0; tt < tf_T; ++tt){
                     #pragma HLS UNROLL
@@ -378,7 +426,9 @@ void FeedForwardNetwork(
                     }
                 }
             }
+            
         }
+        //res_debug_file << std::endl;
     }
     //print data debug
     //std::cout << "data_debug = "<< std::endl;
@@ -387,6 +437,17 @@ void FeedForwardNetwork(
     //        for (int j=0; j < N; j=j+1){
     //            for (int jj=0; jj < tf_N; jj=jj+1){
     //                std::cout << data_debug[i][j][ii][jj] << " ";
+    //            }
+    //        }
+    //        std::cout << std::endl;
+    //    }
+    //}
+    //std::cout << "ffnhidden_debug"<< std::endl;
+    //for (int i=0; i < T; i=i+1){
+    //    for (int ii=0; ii < tf_T; ii=ii+1){
+    //        for (int j=0; j < H; j=j+1){
+    //            for (int jj=0; jj < tf_H; jj=jj+1){
+    //                std::cout << hidden_debug[i][j][ii][jj] << " ";
     //            }
     //        }
     //        std::cout << std::endl;
@@ -413,9 +474,11 @@ void FeedForwardNetwork(
     //        for (int j=0; j < N; j=j+1){
     //            for (int jj=0; jj < tf_N; jj=jj+1){
     //                if (j == N-1 && jj == tf_N-1) {
-    //                    res_debug_file << res_debug[i][j][ii][jj];
+    //                    //std::cout << res_debug[i][j][ii][jj] << std::endl;
+    //                    res_debug_file << ress_debug[i*N*tf_T*tf_N + j*tf_T*tf_N + ii*tf_N + jj];
     //                } else {
-    //                    res_debug_file << res_debug[i][j][ii][jj] << " ";
+    //                    //std::cout << res_debug[i][j][ii][jj] << " ";
+    //                    res_debug_file << ress_debug[i*N*tf_T*tf_N + j*tf_T*tf_N + ii*tf_N + jj] << " ";
     //                }
     //            }
     //        }
@@ -423,6 +486,29 @@ void FeedForwardNetwork(
     //    }
     //}
     //res_debug_file.close();
+
+    //save hidden_debug
+    //std::ofstream hidden_debug_file;
+    //hidden_debug_file.open("ffn_hidden_debug.txt", std::ios_base::app);
+    //hidden_debug_file << std::fixed << std::setprecision(15);
+    //for (int i=0; i < T; i=i+1){
+    //    for (int ii=0; ii < tf_T; ii=ii+1){
+    //        for (int j=0; j < H; j=j+1){
+    //            for (int jj=0; jj < tf_H; jj=jj+1){
+    //                if (j == H-1 && jj == tf_H-1) {
+    //                    hidden_debug_file << hidden_debug[i][j][ii][jj];
+    //                } else {
+    //                    hidden_debug_file << hidden_debug[i][j][ii][jj] << " ";
+    //                }
+    //            }
+    //        }
+    //        hidden_debug_file << std::endl;
+    //    }
+    //}
+    //hidden_debug_file.close();
+    //data_debug_file.close();
+
+    
 
 
     //print linear debug

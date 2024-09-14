@@ -24,6 +24,7 @@ AddLoop:
         for (int j = 0; j < res_T::size; j++) {
             #pragma HLS UNROLL
             out_data[j] = in_data1[j] + in_data2[j];
+            //std::cout << "in_data1[j]: " << in_data1[j] << " in_data2[j]: " << in_data2[j] << " out_data[j]: " << out_data[j] << std::endl;
         }
 
         res.write(out_data);

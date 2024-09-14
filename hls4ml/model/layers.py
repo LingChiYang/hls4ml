@@ -1394,9 +1394,9 @@ class LayerGroup(Layer):
     ]
 
     def initialize(self):
-        print('LayerGroup initialized')
+        #print('LayerGroup initialized')
         shape = self.get_attr('output_shape')
-        print(shape)
+        #print(shape)
         if shape[0] is None:
             shape.pop(0)
         dims = [f'N_INPUT_{self.index}_{i+1}' for i in range(len(shape))]
