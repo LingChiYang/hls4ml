@@ -106,11 +106,20 @@ class FPGABackend(Backend):
         self.attribute_map[Softmax] = softmax_attrs
 
         #transformer_attr
+        ffn_attrs = self.attribute_map.get(FeedForwardNetwork, [])
+        ffn_attrs.append(ConfigurableAttribute('cdf_table_size', default=4096))
+        ffn_attrs.append(ConfigurableAttribute('cdf_table_range', default=4))
+        ffn_attrs.append(
+            TypeAttribute(
+                'cdf_table',
+                default=FixedPrecisionType(18, 0, signed=False, rounding_mode=RoundingMode.RND_CONV, saturation_mode=SaturationMode.SAT),
+            )
+        )
         mha_attrs = self.attribute_map.get(MultiheadAttention, [])
         mha_attrs.append(
             TypeAttribute(
                 'exp_table',
-                default=FixedPrecisionType(18, 8, signed=False, rounding_mode=RoundingMode.RND_CONV, saturation_mode=SaturationMode.SAT),
+                default=FixedPrecisionType(18, 0, signed=False, rounding_mode=RoundingMode.RND_CONV, saturation_mode=SaturationMode.SAT),
             )
         )
         mha_attrs.append(

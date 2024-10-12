@@ -7,6 +7,7 @@
 #include "hls_stream.h"
 #include "hls_streamofblocks.h"
 #include <math.h>
+#include <cmath>
 #include <iostream>
 
 namespace nnet {
@@ -20,41 +21,43 @@ struct ffn_config {
     static constexpr unsigned tiling_factor[3] = {1,1,1};
 };    
 
-template <typename CONFIG_T>  
-void init_geelu_table(typename CONFIG_T::geelu_table_t table_out[CONFIG_T::geelu_table_size])  
-{  
-    for (int ii = 0; ii < CONFIG_T::geelu_table_size; ii++) {  
-        float in_val = 2 * float(CONFIG_T::geelu_range) * (ii - float(CONFIG_T::geelu_table_size) / 2.0) / float(CONFIG_T::geelu_table_size);  
-        float phi_val = 0.5 * (1 + std::erf(in_val / std::sqrt(2)));  
-        typename CONFIG_T::geelu_table_t real_val = in_val * phi_val;  
-        table_out[ii] = real_val;  
-    }  
-}  
+template <typename CONFIG_T> 
+void init_cdf_table(typename CONFIG_T::cdf_table_t table_out[CONFIG_T::cdf_table_size])
+{
+    for (int ii = 0; ii < CONFIG_T::cdf_table_size; ii++) {
+        // 将表索引转换为X值(范围 -4 到 +4)
+        double in_val = 2 * float(CONFIG_T::cdf_table_range) * (ii - float(CONFIG_T::cdf_table_size) / 2.0) / float(CONFIG_T::cdf_table_size);
+        // 计算GELU函数值
+        double cdf = 0.5 * (1.0 + erf(in_val / sqrt(2)));
+        typename CONFIG_T::cdf_table_t real_val = cdf;
+        table_out[ii] = real_val;
+    }
+}
 
-template<typename CONFIG_T>  
-typename CONFIG_T::geelu_table_t lookup_geelu(  
-    typename CONFIG_T::accum_t data)  
-{  
-    #ifdef __HLS_SYN__  
-    bool initialized = false;  
-    typename CONFIG_T::geelu_table_t geelu_table[CONFIG_T::geelu_table_size];  
-    #else  
-    static bool initialized = false;  
-    static typename CONFIG_T::geelu_table_t geelu_table[CONFIG_T::geelu_table_size];  
-    #endif  
+template<typename CONFIG_T>
+typename CONFIG_T::cdf_table_t lookup_cdf(
+    typename CONFIG_T::accum_t data)
+{
+    #ifdef __HLS_SYN__
+    bool initialized = false;
+    typename CONFIG_T::cdf_table_t cdf_table[CONFIG_T::cdf_table_size];
+    #else
+    static bool initialized = false;
+    static typename CONFIG_T::cdf_table_t cdf_table[CONFIG_T::cdf_table_size];
+    #endif
 
-    if (!initialized) {  
-        init_geelu_table<CONFIG_T>(geelu_table);  
-        initialized = true;  
-    }  
+    if (!initialized) {
+        init_cdf_table<CONFIG_T>(cdf_table);
+        initialized = true;
+    }
 
-    int data_round = int(data * (CONFIG_T::geelu_table_size / (CONFIG_T::geelu_range * 2)));  
-    int index = data_round + CONFIG_T::geelu_range * (CONFIG_T::geelu_table_size / (CONFIG_T::geelu_range * 2));  
-
-    if (index < 0) index = 0;  
-    if (index > CONFIG_T::geelu_table_size - 1) index = CONFIG_T::geelu_table_size - 1;  
-    return geelu_table[index];  
-}  
+    int data_round = int(data*(CONFIG_T::cdf_table_size/(CONFIG_T::cdf_table_range*2)));
+    int index = data_round + CONFIG_T::cdf_table_range*(CONFIG_T::cdf_table_size/(CONFIG_T::cdf_table_range*2));
+    
+    if (index < 0)   index = 0;
+    if (index > CONFIG_T::cdf_table_size-1) index = CONFIG_T::cdf_table_size-1;
+    return cdf_table[index];
+}
 
 template<class data_T, class res_T, typename CONFIG_T>
 void FeedForwardNetwork(
@@ -131,9 +134,23 @@ void FeedForwardNetwork(
                         #pragma HLS UNROLL
                         for(int hh=0; hh<tf_H; hh++){
                             #pragma HLS UNROLL
-                            arrB[h*tf_H+tt*tf_H+hh] = (linear_tmp[tt*tf_H+hh] < 0) ? static_cast<typename CONFIG_T::accum_t>(0) : linear_tmp[tt*tf_H+hh];
+                            if (CONFIG_T::activation_gelu){
+                                arrB[h*tf_H+tt*tf_H+hh] = linear_tmp[tt*tf_H+hh] * lookup_cdf<CONFIG_T>(linear_tmp[tt*tf_H+hh]);
+                            } else {
+                                arrB[h*tf_H+tt*tf_H+hh] = (linear_tmp[tt*tf_H+hh] < 0) ? static_cast<typename CONFIG_T::accum_t>(0) : linear_tmp[tt*tf_H+hh];
+                            }
                         }
                     }
+                    // 儲存linear_tmp至linear.txt
+                    std::ofstream outfile;
+                    outfile.open("linear.txt", std::ios_base::app);
+                    for(int tt=0; tt<tf_T; tt++){
+                        for(int hh=0; hh<tf_H; hh++){
+                            outfile << linear_tmp[tt*tf_H+hh] << " ";
+                        }
+                        outfile << "\n";
+                    }
+                    outfile.close();
                 }
             }
         }

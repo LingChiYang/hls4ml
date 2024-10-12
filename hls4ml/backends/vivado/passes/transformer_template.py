@@ -40,6 +40,7 @@ ffn_template = """struct config{index} : nnet::ffn_config {{
     static const unsigned hidden_dim = {hidden_dim};
     static const unsigned in_ram_style = nnet::{in_ram_style};
     static const unsigned out_ram_style = nnet::{out_ram_style};
+    static const bool activation_gelu = {activation_gelu};
     static constexpr unsigned tiling_factor[3] = {tiling_factor};
     typedef {out_proj_bias_t.name} out_proj_bias_t;
     typedef {out_proj_weight_t.name} out_proj_weight_t;
@@ -47,6 +48,9 @@ ffn_template = """struct config{index} : nnet::ffn_config {{
     typedef {in_proj_weight_t.name} in_proj_weight_t;
     typedef {hidden_t.name} hidden_t;
     typedef {accum_t.name} accum_t;
+    typedef {cdf_table_t.name} cdf_table_t;
+    static const unsigned cdf_table_size = {cdf_table_size};
+    static const unsigned cdf_table_range = {cdf_table_range};
 }};\n"""
 
 layernorm_template = """struct config{index} : nnet::layernorm_config {{
@@ -129,6 +133,7 @@ class FFNConfigTemplate(LayerConfigTemplate):
 
     def format(self, node):
         params = self._default_config_params(node)
+        params['activation_gelu'] = 'true' if node.get_attr('activation').__name__ == 'gelu' else 'false'
         params['tiling_factor'] = '{'+','.join([str(x) for x in params['tiling_factor']])+'}'
         ffn_config = self.ffn_template.format(**params)
         return ffn_config

@@ -130,27 +130,29 @@ void LayerNormalize(
     #pragma HLS ARRAY_PARTITION variable=xsum complete dim=1
     #pragma HLS ARRAY_PARTITION variable=deno_inver complete dim=1
     #pragma HLS ARRAY_PARTITION variable=write_buffer1 complete dim=1
-    //#pragma HLS ARRAY_PARTITION variable=row_buffer complete dim=2
-    //#pragma HLS ARRAY_PARTITION variable=row_buffer complete dim=3
     #pragma HLS ARRAY_RESHAPE variable=row_buffer cyclic factor=tf_N*tf_T dim=1
     typename data_T::value_type tmp;
     data_T data_pack;
     res_T res_pack;
-    //typename CONFIG_T::accum_t xsum_debug[CONFIG_T::seq_len];
-    //typename CONFIG_T::accum_t xvar_debug[CONFIG_T::seq_len];
-    //typename res_T::value_type res_debug[T][N][tf_T][tf_N];
-    //typename data_T::value_type data_debug[T][N][tf_T][tf_N];
 
     typename CONFIG_T::accum_t norm_tmp;
-
-    //typename CONFIG_T::accum_t var_in_debug[CONFIG_T::seq_len][CONFIG_T::tiling_factor[0]];
-    //typename CONFIG_T::var_table_t var_out_debug[CONFIG_T::seq_len][CONFIG_T::tiling_factor[0]];
-    //typename CONFIG_T::sum_sqr_t sqr_debug[CONFIG_T::seq_len][CONFIG_T::embed_dim/CONFIG_T::tiling_factor[1]][CONFIG_T::tiling_factor[0]][CONFIG_T::tiling_factor[1]];
+    std::ofstream sum_file("sum.txt", std::ios_base::app);
+    std::ofstream sqrsum_file("sqrsum.txt", std::ios_base::app);
+    std::ofstream mean_file("mean.txt", std::ios_base::app);
+    std::ofstream var_file("var.txt", std::ios_base::app);
+    std::ofstream layernorm_data_file("layernorm_data.txt", std::ios_base::app);
     layerNorm:  for (int j=0; j <= T; ++j){
                     for (int i=0; i < N; ++i){
                         #pragma HLS PIPELINE
                         if (j < T) {
                             data_pack = data.read();
+                            // 儲存layernorm的input(data)至layernorm_data.txt
+                            for (int jj=0; jj < tf_T; ++jj){
+                                for (int ii=0; ii < tf_N; ++ii){
+                                    layernorm_data_file << data_pack[jj*tf_N+ii] << " ";
+                                }
+                            }
+                            layernorm_data_file << "\n";
                         }
                         for (int jj=0; jj < tf_T; ++jj){
                             #pragma HLS UNROLL
@@ -167,22 +169,13 @@ void LayerNormalize(
                                 #pragma HLS UNROLL
                                 if (j < T){
                                     tmp = data_pack[jj*tf_N+ii];
-                                    //data_debug[j][i][jj][ii] = tmp;
                                     typename CONFIG_T::accum_t tmp2 = tmp*tmp*embed_dim_inv;
-                                    //std::cout << tmp2 << " ";
-                                    //sqr_debug[j][i][jj][ii] = tmp2;
                                     if (write_buffer1[jj] == true){
                                         xsum_1[jj] = xsum_1[jj] + tmp;
-                                        //if (j==132){
-                                        //    std::cout << "xsum_1[" << jj << "] = " << xsum_1[jj] << std::endl;
-                                        //}
-                                        xsqrsum_1[jj] = xsqrsum_1[jj] + tmp2;//(tmp - xsum_1[jj])*(tmp - prev_xsum_1[jj]);
+                                        xsqrsum_1[jj] = xsqrsum_1[jj] + tmp2;
                                     } else {
-                                        //if (j==132){
-                                        //    std::cout << "xsum_2[" << jj << "] = " << xsum_2[jj] << " " << tmp << std::endl;
-                                        //}
                                         xsum_2[jj] = xsum_2[jj] + tmp;
-                                        xsqrsum_2[jj] = xsqrsum_2[jj] + tmp2;//(tmp - xsum_2[jj])*(tmp - prev_xsum_2[jj]);
+                                        xsqrsum_2[jj] = xsqrsum_2[jj] + tmp2;
                                     }
                                 }
                                 if (j > 0){
@@ -191,29 +184,9 @@ void LayerNormalize(
                                     } else {
                                         xsum[jj] = xsum_2[jj];
                                     }
-                                    //std::cout << "xsum[" << jj << "] = " << xsum[jj] << std::endl;
                                     xmean[jj] = xsum[jj]*embed_dim_inv;
-                                    //if (j < 6) {
-                                    //    std::cout << "row_buf = " << (row_buffer[i*tf_T*tf_N + ii*tf_T + jj] - xmean[jj])*deno_inver[jj] << std::endl;
-                                    //} 
                                     norm_tmp = (row_buffer[i*tf_T*tf_N + ii*tf_T + jj] - xmean[jj])*deno_inver[jj];
-                                    //std::cout << "norm_tmp = " << norm_tmp << std::endl;
                                     res_pack[jj*tf_N+ii] = norm_tmp*scale[i*tf_N + ii] + bias[i*tf_N + ii];
-                                    //save 133th row
-                                    //set the precision to 10
-                                    //std::cout << std::fixed << std::setprecision(10);
-                                    //if (j == 133){
-                                    //    std::cout << "norm[" << j << "] = "
-                                    //    << row_buffer[i*tf_T*tf_N + ii*tf_T + jj] << " "
-                                    //    << xsum[jj] << " "
-                                    //    << xmean[jj] << " "
-                                    //    << deno_inver[jj] << " "
-                                    //    << row_buffer[i*tf_T*tf_N + ii*tf_T + jj] - xmean[jj] << " "
-                                    //    << norm_tmp << " " 
-                                    //    << norm_tmp*scale[i*tf_N + ii] + bias[i*tf_N + ii]
-                                    //    << " " << res_pack[jj*tf_N+ii] 
-                                    //    << " " << scale[i*tf_N + ii] << " " << bias[i*tf_N + ii] << std::endl;
-                                    //}
                                 }
                                 if (j < T){
                                     row_buffer[i*tf_T*tf_N + ii*tf_T + jj] = tmp;
@@ -222,25 +195,14 @@ void LayerNormalize(
                             if (i == (N-1)){
                                 write_buffer1[jj] = !write_buffer1[jj];
                                 if (write_buffer1[jj] == false){
-                                    //std::cout << "xsqrsum_1[" << jj << "] = " << xsqrsum_1[jj] << " ";
                                     xsqrsum[jj] = xsqrsum_1[jj];
                                     xsum[jj] = xsum_1[jj];
                                 } else {
-                                    //std::cout << "xsqrsum_2[" << jj << "] = " << xsqrsum_2[jj] << " ";
                                     xsqrsum[jj] = xsqrsum_2[jj];
                                     xsum[jj] = xsum_2[jj];
                                 }
                                 xmean[jj] = xsum[jj]*embed_dim_inv;
-                                //xsum_debug[j*tf_T + jj] = xmean[jj];
-                                //std::cout << "sqrsum = " << xsqrsum[jj] << " ";
                                 typename CONFIG_T::accum_t tmp3 = xsqrsum[jj]-xmean[jj]*xmean[jj];
-                                //std::cout << "tmp3 = " << tmp3 << " ";
-                                //xvar_debug[j*tf_T + jj] = tmp3;
-                                //typename CONFIG_T::mean_t tmp3 = CONFIG_T::embed_dim*xsqrsum[jj]-xsum[jj]*xsum[jj];
-                                //var_in_debug[j][jj] = tmp3;
-                                //if (j < 6) {
-                                //    std::cout << "tmp3 = " << tmp3 << std::endl;
-                                //}
                                 if (CONFIG_T::table_range > CONFIG_T::table_size) {
                                     index = (tmp3*CONFIG_T::table_size)/CONFIG_T::table_range;
                                 } else {
@@ -249,216 +211,42 @@ void LayerNormalize(
                                 if (index < 0)   index = 0;
                                 if (index > CONFIG_T::table_size-1) index = CONFIG_T::table_size-1;
                                 deno_inver[jj] = (typename CONFIG_T::var_table_t) invert_sqr_table[index];
-                                //if (j < 6) {
-                                //    std::cout << "deno_inver[" << jj << "] = " << deno_inver[jj] << std::endl;
-                                //}
-                                //var_out_debug[j][jj] = deno_inver[jj];
-                            }
-                        }
-                        //if (j > 0){
-                        //    for (int jj=0; jj < tf_T; ++jj){
-                        //        for (int ii=0; ii < tf_N; ++ii){
-                        //            res_debug[j-1][i][jj][ii] = res_pack[jj*tf_N+ii];
-                        //        }
-                        //    }
-                        //}
-                        if (j > 0){
-                           res.write(res_pack);
-                        }
-                    }
-                }
-    
-    //std::cout << "lnres_debug = " << std::endl;
-    //for (int i = 0; i < T; i++) {
-    //    for (int ii = 0; ii < tf_T; ii++) {
-    //        for (int j = 0; j < N; j++) {
-    //            for (int jj = 0; jj < tf_N; jj++) {
-    //                std::cout << res_debug[i][j][ii][jj] << " ";
-    //            }
-    //        }
-    //        std::cout << std::endl;
-    //    }
-    //}
-    /*
-    std::cout << "var_out_debug = " << std::endl;
-    for (int j=0; j < T; ++j){
-        for (int jj=0; jj < tf_T; ++jj){
-            std::cout << var_out_debug[j][jj] << " ";
-        }
-    }
-    std::cout << std::endl;
-    */
-    //std::cout << "var_out_debug = " << std::endl;
-    //for (int j=0; j < T; ++j){
-    //    for (int jj=0; jj < tf_T; ++jj){
-    //        std::cout << var_out_debug[j][jj] << " ";
-    //    }
-    //}
-    //std::cout << std::endl;
-    //std::cout << "xsum_debug = " << std::endl;
-    //for (int i = 0; i < CONFIG_T::seq_len; i++) {
-    //    std::cout << xsum_debug[i] << " ";
-    //}
-    //std::cout << std::endl;
-    //save var_out_debug to file
-    
-
-
-    /*
-    std::ofstream var_out_debug_file;
-    var_out_debug_file.open("var_out_debug.txt", std::ios_base::app);
-    var_out_debug_file << std::fixed << std::setprecision(15);
-    for (int j=0; j < T; ++j){
-        for (int jj=0; jj < tf_T; ++jj){
-            var_out_debug_file << var_out_debug[j][jj] << std::endl;
-        }
-    }
-    //var_out_debug_file << std::endl;
-    var_out_debug_file.close();
-    //save var_debug
-    std::ofstream xvar_debug_file;
-    xvar_debug_file.open("xvar_debug.txt", std::ios_base::app);
-    xvar_debug_file << std::fixed << std::setprecision(15);
-    for (int i = 0; i < CONFIG_T::seq_len; i++) {
-        xvar_debug_file << xvar_debug[i] << std::endl;
-    }
-    //xvar_debug_file << std::endl;
-    xvar_debug_file.close();
-    
-    //save sum_debug
-    
-    std::ofstream xsum_debug_file;
-    xsum_debug_file.open("xsum_debug.txt", std::ios_base::app);
-    xsum_debug_file << std::fixed << std::setprecision(15);
-    for (int i = 0; i < CONFIG_T::seq_len; i++) {
-        if (i == CONFIG_T::seq_len-1){
-            xsum_debug_file << xsum_debug[i];
-        } else {
-            xsum_debug_file << xsum_debug[i] << " ";
-        }
-    }
-    xsum_debug_file << std::endl;
-    xsum_debug_file.close();
-    
-    
-    std::ofstream ln_res_debug_file;
-    ln_res_debug_file.open("ln_res_debug.txt", std::ios_base::app);
-    ln_res_debug_file << std::fixed << std::setprecision(15);
-    for (int i = 0; i < T; i++) {
-        for (int ii = 0; ii < tf_T; ii++) {
-            for (int j = 0; j < N; j++) {
-                for (int jj = 0; jj < tf_N; jj++) {
-                    if (j == N-1 && jj == tf_N-1){
-                        ln_res_debug_file << res_debug[i][j][ii][jj];
-                    } else {
-                        ln_res_debug_file << res_debug[i][j][ii][jj] << " ";
-                    }
-                }
-            }
-            ln_res_debug_file << std::endl;
-        }
-    }
-    ln_res_debug_file << std::endl;
-    ln_res_debug_file.close();
-    
-    std::ofstream ln_in_debug_file;
-    ln_in_debug_file.open("ln_in_debug.txt", std::ios_base::app);
-    ln_in_debug_file << std::fixed << std::setprecision(15);
-    for (int i = 0; i < T; i++) {
-        for (int ii = 0; ii < tf_T; ii++) {
-            for (int j = 0; j < N; j++) {
-                for (int jj = 0; jj < tf_N; jj++) {
-                    if (j == N-1 && jj == tf_N-1){
-                        ln_in_debug_file << data_debug[i][j][ii][jj];
-                    } else {
-                        ln_in_debug_file << data_debug[i][j][ii][jj] << " ";
-                    }
-                }
-            }
-            ln_in_debug_file << std::endl;
-        }
-    }
-    ln_in_debug_file << std::endl;
-    ln_in_debug_file.close();
-    
-    */
-
-    //std::cout << "lnres_debug = " << std::endl;
-    //for (int i = 0; i < T; i++) {
-    //    for (int ii = 0; ii < tf_T; ii++) {
-    //        for (int j = 0; j < N; j++) {
-    //            for (int jj = 0; jj < tf_N; jj++) {
-    //                std::cout << res_debug[i][j][ii][jj] << " ";
-    //            }
-    //        }
-    //        std::cout << std::endl;
-    //    }
-    //}
-    //save var_in_debug and var_out_debug to file
-    /*
-    std::ofstream var_in_debug_file;
-    var_in_debug_file.open("var_in_debug.txt", std::ios_base::app);
-    for (int j=0; j < T; ++j){
-        for (int jj=0; jj < tf_T; ++jj){
-            if (j == T-1){
-                var_in_debug_file << var_in_debug[j][jj];
-            } else {
-                var_in_debug_file << var_in_debug[j][jj] << " ";
-            }
-        }
-    }
-    var_in_debug_file << std::endl;
-    var_in_debug_file.close();
-    std::ofstream var_out_debug_file;
-    var_out_debug_file.open("var_out_debug.txt", std::ios_base::app);
-    for (int j=0; j < T; ++j){
-        for (int jj=0; jj < tf_T; ++jj){
-            if (j == T-1){
-                var_out_debug_file << var_out_debug[j][jj];
-            } else {
-                var_out_debug_file << var_out_debug[j][jj] << " ";
-            }
-        }
-    }
-    var_out_debug_file << std::endl;
-    var_out_debug_file.close();
-
-    //save sqr_debug to file
-    std::ofstream sqr_debug_file;
-    sqr_debug_file.open("sqr_debug.txt", std::ios_base::app);
-    for (int j=0; j < T; ++j){
-        for (int i=0; i < N; ++i){
-            for (int jj=0; jj < tf_T; ++jj){
-                for (int ii=0; ii < tf_N; ++ii){
-                    if (j == T-1 && i == N-1){
-                        sqr_debug_file << sqr_debug[j][i][jj][ii];
-                    } else {
-                        sqr_debug_file << sqr_debug[j][i][jj][ii] << " ";
-                    }
-                }
-            }
-        }
-    }
-    sqr_debug_file << std::endl;
-    */
-    /*
-    store_output:   for (int j=0; j < T; ++j){
-                        for (int i=0; i < N; ++i){
-                            #pragma HLS PIPELINE
-                            for (int jj=0; jj < tf_T; ++jj){
-                                #pragma HLS UNROLL
-                                for (int ii=0; ii < tf_N; ++ii){
-                                    #pragma HLS UNROLL
-                                    res_T res_pack;
-                                    res_pack[jj*tf_N+ii] = outval[j][i][jj][ii];
-                                    if (jj == tf_T-1 && ii == tf_N-1){
-                                        res.write(res_pack);
-                                    }
+                                
+                                // 儲存xsum、xsqrsum、mean和deno_inver
+                                if (j < T){
+                                    sum_file << xsum[jj] << " ";
+                                    sqrsum_file << xsqrsum[jj] << " ";
+                                    mean_file << xmean[jj] << " ";
+                                    var_file << deno_inver[jj] << " ";
                                 }
                             }
                         }
+                        if (j > 0){
+                           res.write(res_pack);
+                           // 儲存layernorm result 至 lyernorm_res.txt
+                           std::ofstream outfile;
+                           outfile.open("layernorm_res.txt", std::ios_base::app);
+                           for(int jj=0; jj < tf_T; jj++){
+                               for(int ii=0; ii < tf_N; ii++){
+                                   outfile << res_pack[jj*tf_N+ii] << " ";
+                               }
+                           }
+                           outfile << "\n";
+                           outfile.close();
+                        }
                     }
-    */
+                    // 每一行結束後換行
+                    sum_file << "\n";
+                    sqrsum_file << "\n";
+                    mean_file << "\n";
+                    var_file << "\n";
+                }
+                sum_file.close();
+                sqrsum_file.close();
+                mean_file.close();
+                var_file.close();
+                layernorm_data_file.close();
+    
     
 }
 

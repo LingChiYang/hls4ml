@@ -548,6 +548,12 @@ class VivadoBackend(FPGABackend):
     def init_ffn(self, layer):
         tiling_factor = layer.model.config.get_tiling_factor(layer)
         layer.set_attr('tiling_factor', tiling_factor)
+
+        cdf_table_range = layer.model.config.get_layer_config_value(layer, 'CdfTableRange', 4)
+        cdf_table_size = layer.model.config.get_layer_config_value(layer, 'CdfTableSize', 4096)
+        layer.set_attr('cdf_table_range', cdf_table_range)
+        layer.set_attr('cdf_table_size', cdf_table_size)
+
         layer.set_attr('in_ram_style', layer.model.config.get_layer_config_value(layer, 'InRAMStyle', 'block'))
         layer.set_attr('out_ram_style', layer.model.config.get_layer_config_value(layer, 'OutRAMStyle', 'block'))
         layer.set_attr('index_t', NamedType(f'layer{layer.index}_index', IntegerPrecisionType(width=1, signed=False)))

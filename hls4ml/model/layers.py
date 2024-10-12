@@ -1303,6 +1303,7 @@ class FeedForwardNetwork(Layer):
         TypeAttribute('out_proj_weight'),
         TypeAttribute('out_proj_bias'),
         TypeAttribute('accum_t'),
+        TypeAttribute('cdf_table_t'),
     ]
     def initialize(self):
         self.add_weights_variable(name='in_proj_weight')
@@ -1313,7 +1314,7 @@ class FeedForwardNetwork(Layer):
         shape = [self.attributes['seq_len'], self.attributes['embed_dim']]
         self.add_output_variable(shape, dims)
         self.set_attr('hidden_t', NamedType(*reversed(self.model.config.get_precision(self, 'hidden'))))
-
+        self.set_attr('cdf_table_t', NamedType(*reversed(self.model.config.get_precision(self, 'cdf_table'))))
 
 class LayerNorm(Layer):
     _expected_attributes = [

@@ -7,6 +7,7 @@
 #include <iostream>
 #include <math.h>
 #include "nnet_helpers.h"
+#include "hls_streamofblocks.h"
 //#include "nnet_activation.h"
 
 namespace nnet {
@@ -205,6 +206,27 @@ void MultiHeadAttention(
         }
     }
 
+    // Add this code to write Q, K, and V to files
+    // std::ofstream Q_file("Q.txt");
+    // std::ofstream K_file("K.txt");
+    // std::ofstream V_file("V.txt");
+
+    // for (int i = 0; i < CONFIG_T::seq_len * CONFIG_T::n_head * CONFIG_T::head_dim; i++) {
+    //     Q_file << Q[i] << " ";
+    //     K_file << K[i] << " ";
+    //     V_file << V[i] << " ";
+
+    //     if ((i + 1) % (CONFIG_T::n_head * CONFIG_T::head_dim) == 0) {
+    //         Q_file << "\n";
+    //         K_file << "\n";
+    //         V_file << "\n";
+    //     }
+    // }
+
+    // Q_file.close();
+    // K_file.close();
+    // V_file.close();
+
 
     typename CONFIG_T::exp_table_t prev_exp_tmp[CONFIG_T::n_head * tf_T];
     typename CONFIG_T::exp_table_t exp_tmp[CONFIG_T::n_head * tf_T];
@@ -305,6 +327,31 @@ void MultiHeadAttention(
                             }
                         }
                     P_exp_aggr_strm.write(P_exp_aggr_block);
+                    // Write to files
+                    // std::ofstream exp_diff_file("exp_diff.txt", std::ios::app);
+                    // std::ofstream P_file("P.txt", std::ios::app);
+                    // std::ofstream QK_file("QK.txt", std::ios::app);
+                    // std::ofstream new_rowmax_file("new_rowmax.txt", std::ios::app);
+
+                    // for (int h = 0; h < CONFIG_T::n_head; h++) {
+                    //     for (int ii = 0; ii < tf_T; ii++) {
+                    //         exp_diff_file << P_exp_aggr_block[CONFIG_T::n_head*tf_T*tf_T + h*tf_T + ii] << " ";
+                    //         new_rowmax_file << new_rowmax[h*tf_T + ii] << " ";
+                    //         for (int jj = 0; jj < tf_T; jj++) {
+                    //             P_file << P_exp_aggr_block[h*tf_T*tf_T + ii*tf_T + jj] << " ";
+                    //             QK_file << QK[h*tf_T*tf_T + ii*tf_T + jj] << " ";
+                    //         }
+                    //         P_file << "\n";
+                    //         QK_file << "\n";
+                    //     }
+                    //     exp_diff_file << "\n";
+                    //     new_rowmax_file << "\n";
+                    // }
+
+                    // exp_diff_file.close();
+                    // P_file.close();
+                    // QK_file.close();
+                    // new_rowmax_file.close();
                 }
             }
         }
@@ -323,8 +370,6 @@ void MultiHeadAttention(
     hls::stream_of_blocks<O_buf, 4> O_sob;
     #pragma HLS ARRAY_RESHAPE variable=O_sob    cyclic factor=CONFIG_T::n_head*tf_T*tf_H dim=1
 
-    Initialization:
-    
     PVO_PRODUCT:
     for (int i = 0; i < T; i++) {
         hls::write_lock<O_buf> O_write_block(O_sob);
@@ -334,15 +379,15 @@ void MultiHeadAttention(
                 int o_offset = (i*H + hd)*CONFIG_T::n_head*tf_H*tf_T;
                 int v_offset = (j*H + hd)*CONFIG_T::n_head*tf_H*tf_T;
                 typename CONFIG_T::accum_t tmp[CONFIG_T::n_head*tf_T];
-                if (j == 0){
+                if (hd == 0){
+                    if (j == 0){
                     INIT_SUM:
                         for (int h = 0; h < CONFIG_T::n_head; h++) {
                             for (int ii = 0; ii < tf_T; ii++) {
                                 prev_rowsum[h*tf_T + ii] = 0;
                             }
                         }
-                }
-                if (hd == 0){
+                    }
                     P_exp_aggr_block_read = P_exp_aggr_strm.read();
 
                     LOAD_BLOCK:
@@ -366,6 +411,12 @@ void MultiHeadAttention(
                         for (int h = 0; h < CONFIG_T::n_head; h++) {
                             for (int ii = 0; ii < tf_T; ii++) {
                                 prev_rowsum[h*tf_T + ii] = P_exp_aggr_block_read[CONFIG_T::n_head*tf_T*tf_T + h*tf_T + ii]*prev_rowsum[h*tf_T + ii] + rowsum[h*tf_T + ii];
+                                
+                                // 儲存更新後的prev_row_sum至prev_row_sum.txt
+                                // std::ofstream prev_row_sum_file("prev_row_sum.txt", std::ios::app);
+                                // prev_row_sum_file << prev_rowsum[h*tf_T + ii] << " ";
+                                // if (ii == tf_T - 1) prev_row_sum_file << "\n";
+                                // prev_row_sum_file.close();
                             }
                         }
                 }        
@@ -407,6 +458,12 @@ void MultiHeadAttention(
                                 if (j == T-1){
                                     inv_rowsum[h*tf_T + ii] = lookup_inv<CONFIG_T>(prev_rowsum[h*tf_T + ii]);
                                     O_write_block[hd*tf_T*tf_H*CONFIG_T::n_head + h*tf_T*tf_H + ii*tf_H + jj] = O_ff[h*tf_T*tf_H + ii*tf_H + jj]*inv_rowsum[h*tf_T + ii];
+                                    
+                                    // 儲存未乘上inv_row_sum的O至O.txt
+                                    // std::ofstream O_file("O.txt", std::ios::app);
+                                    // O_file << O_ff[h*tf_T*tf_H + ii*tf_H + jj] << " ";
+                                    // if (jj == tf_H - 1) O_file << "\n";
+                                    // O_file.close();
                                 }
                                 else{
                                     O_ram[hd*tf_T*tf_H*CONFIG_T::n_head + h*tf_T*tf_H + ii*tf_H + jj] = O_ff[h*tf_T*tf_H + ii*tf_H + jj];
@@ -454,6 +511,16 @@ void MultiHeadAttention(
                 }
                 if (k==H-1){
                     res.write(res_pack);
+                    // 儲存res至MHA_res.txt
+                    // std::ofstream MHA_res_file("MHA_res.txt", std::ios::app);
+                    // for (int ii = 0; ii < tf_T; ii++) {
+                    //     for (int jj = 0; jj < tf_N; jj++) {
+                    //         MHA_res_file << res_pack[ii*tf_N + jj] << " ";
+                    //     }
+                    //     MHA_res_file << "\n";
+                    // }
+                    // MHA_res_file << "\n";
+                    // MHA_res_file.close();
                 }
             }
         }
