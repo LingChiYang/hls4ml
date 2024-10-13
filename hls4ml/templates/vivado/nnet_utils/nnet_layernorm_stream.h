@@ -136,23 +136,23 @@ void LayerNormalize(
     res_T res_pack;
 
     typename CONFIG_T::accum_t norm_tmp;
-    std::ofstream sum_file("sum.txt", std::ios_base::app);
-    std::ofstream sqrsum_file("sqrsum.txt", std::ios_base::app);
-    std::ofstream mean_file("mean.txt", std::ios_base::app);
-    std::ofstream var_file("var.txt", std::ios_base::app);
-    std::ofstream layernorm_data_file("layernorm_data.txt", std::ios_base::app);
+    // std::ofstream sum_file("sum.txt", std::ios_base::app);
+    // std::ofstream sqrsum_file("sqrsum.txt", std::ios_base::app);
+    // std::ofstream mean_file("mean.txt", std::ios_base::app);
+    // std::ofstream var_file("var.txt", std::ios_base::app);
+    // std::ofstream layernorm_data_file("layernorm_data.txt", std::ios_base::app);
     layerNorm:  for (int j=0; j <= T; ++j){
                     for (int i=0; i < N; ++i){
                         #pragma HLS PIPELINE
                         if (j < T) {
                             data_pack = data.read();
                             // 儲存layernorm的input(data)至layernorm_data.txt
-                            for (int jj=0; jj < tf_T; ++jj){
-                                for (int ii=0; ii < tf_N; ++ii){
-                                    layernorm_data_file << data_pack[jj*tf_N+ii] << " ";
-                                }
-                            }
-                            layernorm_data_file << "\n";
+                            // for (int jj=0; jj < tf_T; ++jj){
+                            //     for (int ii=0; ii < tf_N; ++ii){
+                            //         layernorm_data_file << data_pack[jj*tf_N+ii] << " ";
+                            //     }
+                            // }
+                            // layernorm_data_file << "\n";
                         }
                         for (int jj=0; jj < tf_T; ++jj){
                             #pragma HLS UNROLL
@@ -213,39 +213,39 @@ void LayerNormalize(
                                 deno_inver[jj] = (typename CONFIG_T::var_table_t) invert_sqr_table[index];
                                 
                                 // 儲存xsum、xsqrsum、mean和deno_inver
-                                if (j < T){
-                                    sum_file << xsum[jj] << " ";
-                                    sqrsum_file << xsqrsum[jj] << " ";
-                                    mean_file << xmean[jj] << " ";
-                                    var_file << deno_inver[jj] << " ";
-                                }
+                                // if (j < T){
+                                //     sum_file << xsum[jj] << " ";
+                                //     sqrsum_file << xsqrsum[jj] << " ";
+                                //     mean_file << xmean[jj] << " ";
+                                //     var_file << deno_inver[jj] << " ";
+                                // }
                             }
                         }
                         if (j > 0){
                            res.write(res_pack);
                            // 儲存layernorm result 至 lyernorm_res.txt
-                           std::ofstream outfile;
-                           outfile.open("layernorm_res.txt", std::ios_base::app);
-                           for(int jj=0; jj < tf_T; jj++){
-                               for(int ii=0; ii < tf_N; ii++){
-                                   outfile << res_pack[jj*tf_N+ii] << " ";
-                               }
-                           }
-                           outfile << "\n";
-                           outfile.close();
+                        //    std::ofstream outfile;
+                        //    outfile.open("layernorm_res.txt", std::ios_base::app);
+                        //    for(int jj=0; jj < tf_T; jj++){
+                        //        for(int ii=0; ii < tf_N; ii++){
+                        //            outfile << res_pack[jj*tf_N+ii] << " ";
+                        //        }
+                        //    }
+                        //    outfile << "\n";
+                        //    outfile.close();
                         }
                     }
                     // 每一行結束後換行
-                    sum_file << "\n";
-                    sqrsum_file << "\n";
-                    mean_file << "\n";
-                    var_file << "\n";
+                    // sum_file << "\n";
+                    // sqrsum_file << "\n";
+                    // mean_file << "\n";
+                    // var_file << "\n";
                 }
-                sum_file.close();
-                sqrsum_file.close();
-                mean_file.close();
-                var_file.close();
-                layernorm_data_file.close();
+                // sum_file.close();
+                // sqrsum_file.close();
+                // mean_file.close();
+                // var_file.close();
+                // layernorm_data_file.close();
     
     
 }

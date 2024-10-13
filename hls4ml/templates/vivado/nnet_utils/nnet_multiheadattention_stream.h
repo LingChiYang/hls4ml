@@ -29,7 +29,7 @@ void init_exp_table(typename CONFIG_T::exp_table_t table_out[CONFIG_T::exp_table
 {
     for (int ii = 0; ii < CONFIG_T::exp_table_size; ii++) {
         // First, convert from table index to X-value (signed 8-bit, range -8 to +8)
-        float in_val = 2 * float(CONFIG_T::exp_range) * (ii - float(CONFIG_T::exp_table_size) / 2.0) / float(CONFIG_T::exp_table_size);
+        double in_val = 2 * double(CONFIG_T::exp_range) * (ii - double(CONFIG_T::exp_table_size) / 2.0) / double(CONFIG_T::exp_table_size);
         // Next, compute lookup table function
         typename CONFIG_T::exp_table_t real_val = std::exp(in_val);
         // std::cout << "Lookup table In Value: " << in_val << " Result: " << real_val << std::endl;
@@ -44,7 +44,7 @@ void init_invert_table(typename CONFIG_T::inv_table_t table_out[CONFIG_T::inv_ta
     //   result = 1/x
     for (int ii = 0; ii < CONFIG_T::inv_table_size; ii++) {
         // First, convert from table index to X-value (signed 8-bit, range 0 to +64)
-        float in_val = float(CONFIG_T::inv_range) * ii / float(CONFIG_T::inv_table_size);
+        double in_val = double(CONFIG_T::inv_range) * ii / double(CONFIG_T::inv_table_size);
         // Next, compute lookup table function
         if (in_val > 0.0)
             table_out[ii] = 1.0 / in_val;
@@ -207,9 +207,9 @@ void MultiHeadAttention(
     }
 
     // Add this code to write Q, K, and V to files
-    // std::ofstream Q_file("Q.txt");
-    // std::ofstream K_file("K.txt");
-    // std::ofstream V_file("V.txt");
+    // std::ofstream Q_file("Q.txt", std::ios::app);
+    // std::ofstream K_file("K.txt", std::ios::app);
+    // std::ofstream V_file("V.txt", std::ios::app);
 
     // for (int i = 0; i < CONFIG_T::seq_len * CONFIG_T::n_head * CONFIG_T::head_dim; i++) {
     //     Q_file << Q[i] << " ";
